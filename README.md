@@ -32,10 +32,25 @@ A Roblox brainrot idle clicker game built with Rojo + VS Code.
 | Tap-anywhere input (no click button) | ✅ |
 | Space key support | ✅ |
 
-## 🐛 Known Issues (as of Chat 2)
+## ✅ Chat 3 Fixes
 
-- **Floating sigma numbers not appearing** after taps — clicks work (sigma accrues, GodMode fires) but `spawnFloat` and `spawnTapRipple` may be blocked by `panelHost` frame intercepting input
-- **Nav bar is horizontal bottom bar** — 10 buttons, too cluttered on mobile. Planned: vertical right-side rail, icon-only pills
+- **UIManager crash fix** — `NAV_RAIL_W` was referenced before declaration (Lua doesn't hoist locals → nil arithmetic → entire UIManager died, blank screen). Constants hoisted above `screen` ScreenGui creation.
+- **panelHost input blocking** — `panelHost.Active = false`; all panel ScrollingFrames also set `Active = false` so taps fall through to `tapCatcher`.
+- **ClickHandler conflict** — Obsolete V1 `ClickHandler.client.lua` stubbed with `do return end`.
+- **Glass morphism nav** — Nav rail: dark purple frosted glass + UIGradient + purple UIStroke. HUD cards (sigma, rank, rizz): white frosted glass + colored UIStroke.
+- **Icon + text nav pills** — Text label below icon now visible; icon 56% height, text 28% height, Gotham font.
+- **Sound system** — Egg drumroll (`4946458712`) plays on HatchResult; per-rarity hatch reveals (common/rare/legendary separate IDs); death OOF (`131961136`); click cooldown (100ms throttle); crit tiers wired.
+
+## 🗂️ Chat 4 Priority Queue
+
+| Priority | Feature |
+|----------|---------|
+| 🔴 High | Sound toggle / mute button in settings panel |
+| 🔴 High | Visual floating sigma numbers (spawnFloat fix) |
+| 🟡 Med  | Map zones unlock by rank milestone |
+| 🟡 Med  | Character aura effects (glow by prestige level) |
+| 🟢 Low  | Rank-up fanfare animation (full-screen flash + label) |
+| 🟢 Low  | Map evolution visuals (world changes at high ranks) |
 
 ---
 

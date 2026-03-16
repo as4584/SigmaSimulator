@@ -707,7 +707,7 @@ local function doHatch(player, d, eggDef)
     checkAchieve(player, "hatches", d.totalHatches)
     checkAchieve(player, "rarity", 1, petDef.rarity)
     checkAchieve(player, "all_pets", 0)
-    return { petId=petDef.id, eggId=eggDef.id, isDuplicate=isDuplicate, rizzBonus=rizzBonus }
+    return { petId=petDef.id, eggId=eggDef.id, rarity=petDef.rarity, isDuplicate=isDuplicate, rizzBonus=rizzBonus }
 end
 
 HatchEggEvent.OnServerEvent:Connect(function(player, eggId)
@@ -734,7 +734,7 @@ RerollEggEvent.OnServerEvent:Connect(function(player, eggId)
     d.totalHatches = (d.totalHatches or 0) + 1
     updateQuest(player, "hatches", 1)
     HatchResultEvent:FireClient(player, {
-        petId=petDef.id, eggId=eggId,
+        petId=petDef.id, eggId=eggId, rarity=petDef.rarity,
         isDuplicate=isDuplicate, rizzBonus=rizzBonus, isReroll=true,
     })
     sync(player, 0, "")

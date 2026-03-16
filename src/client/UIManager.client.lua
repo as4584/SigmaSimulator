@@ -46,6 +46,13 @@ for _, e in ipairs(Eggs) do EGG_COLORS[e.id]=e.color end
 local petById={}
 for _, p in ipairs(Pets) do petById[p.id]=p end
 
+-- ── Nav rail dimensions (declared early — used before NAV_TABS block) ──────
+local NAV_RAIL_W  = 72   -- px, rail width
+local NAV_BTN_W   = 56   -- px, pill width inside rail
+local NAV_BTN_H   = 72   -- px, pill height (icon + text label)
+local NAV_BAR_H   = 72   -- legacy alias
+local NAV_PADDING = 8    -- gap between pills
+
 -- ── Root ScreenGui ─────────────────────────────────────────────────────────
 local screen=Instance.new("ScreenGui")
 screen.Name="SigmaGui"; screen.ResetOnSpawn=false
@@ -127,9 +134,9 @@ task.delay(5, dismissHint)
 -- ── TOP RIGHT: Rizz counter ───────────────────────────────────────────────
 local rizzFrame=Instance.new("Frame")
 rizzFrame.Size=UDim2.new(0,180,0,46); rizzFrame.Position=UDim2.new(1,-190-NAV_RAIL_W,0,12)
-rizzFrame.BackgroundColor3=Color3.fromRGB(55,0,90); rizzFrame.BackgroundTransparency=0.05
+rizzFrame.BackgroundColor3=Color3.fromRGB(255,255,255); rizzFrame.BackgroundTransparency=0.82
 rizzFrame.BorderSizePixel=0; rizzFrame.Parent=screen; corner(rizzFrame)
-Instance.new("UIStroke",rizzFrame).Color=Color3.fromRGB(140,60,220)
+do local s=Instance.new("UIStroke",rizzFrame); s.Color=Color3.fromRGB(180,80,255); s.Transparency=0.35; s.Thickness=1 end
 local rizzLabel=lbl({Name="RizzLabel",Size=UDim2.new(1,-8,1,0),Position=UDim2.new(0,4,0,0),
     Text="💎  0 Rizz",TextColor3=Color3.fromRGB(230,180,255),TextScaled=true,
     Font=Enum.Font.GothamBold},rizzFrame)
@@ -137,8 +144,9 @@ local rizzLabel=lbl({Name="RizzLabel",Size=UDim2.new(1,-8,1,0),Position=UDim2.ne
 -- ── TOP CENTER: Sigma + pet income ───────────────────────────────────────
 local sigmaFrame=Instance.new("Frame")
 sigmaFrame.Size=UDim2.new(0,320,0,76); sigmaFrame.Position=UDim2.new(0.5,-160,0,12)
-sigmaFrame.BackgroundColor3=Color3.fromRGB(12,12,12); sigmaFrame.BackgroundTransparency=0.15
+sigmaFrame.BackgroundColor3=Color3.fromRGB(255,255,255); sigmaFrame.BackgroundTransparency=0.82
 sigmaFrame.BorderSizePixel=0; sigmaFrame.Parent=screen; corner(sigmaFrame)
+do local s=Instance.new("UIStroke",sigmaFrame); s.Color=Color3.fromRGB(200,200,255); s.Transparency=0.45; s.Thickness=1 end
 local sigmaLabel=lbl({Name="SigmaLabel",Size=UDim2.new(1,0,0.45,0),
     Text="😎  0 σ",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},sigmaFrame)
 local petIncomeLabel=lbl({Name="PetLabel",Size=UDim2.new(1,0,0.28,0),Position=UDim2.new(0,0,0.45,0),
@@ -155,8 +163,9 @@ local spinBoostLabel=lbl({Name="SpinBoostLabel",Size=UDim2.new(0,180,0,22),
 -- ── Rank + progress ───────────────────────────────────────────────────────
 local rankFrame=Instance.new("Frame")
 rankFrame.Size=UDim2.new(0,320,0,42); rankFrame.Position=UDim2.new(0.5,-160,0,92)
-rankFrame.BackgroundColor3=Color3.fromRGB(12,12,12); rankFrame.BackgroundTransparency=0.15
+rankFrame.BackgroundColor3=Color3.fromRGB(255,255,255); rankFrame.BackgroundTransparency=0.82
 rankFrame.BorderSizePixel=0; rankFrame.Parent=screen; corner(rankFrame)
+do local s=Instance.new("UIStroke",rankFrame); s.Color=Color3.fromRGB(200,200,255); s.Transparency=0.45; s.Thickness=1 end
 local rankLabel=lbl({Name="RankLabel",Size=UDim2.new(1,0,0.6,0),
     Text="🤡  NPC",TextColor3=Color3.fromRGB(220,220,220),TextScaled=true,Font=Enum.Font.GothamBold},rankFrame)
 local progBg=Instance.new("Frame")
@@ -238,23 +247,32 @@ local NAV_TABS = {
     { id="Free",     icon="🎁", label="Free",    accent=Color3.fromRGB(40, 220, 200)  },
 }
 
--- Rail dimensions (vertical right-side nav)
-local NAV_RAIL_W  = 72   -- px, total rail width
-local NAV_BTN_W   = 56   -- px, pill width inside rail
-local NAV_BTN_H   = 56   -- px, pill height (square-ish)
-local NAV_BAR_H   = 72   -- legacy alias (== NAV_RAIL_W)
-local NAV_PADDING = 8    -- gap between pills
+-- Nav rail dimensions declared at top of file (before ScreenGui creation).
 
 -- ── Bar backing surface ───────────────────────────────────────────────────
 local navBacking = Instance.new("Frame")
 navBacking.Name             = "NavBacking"
 navBacking.Size             = UDim2.new(0, NAV_RAIL_W, 1, 0)
 navBacking.Position         = UDim2.new(1, -NAV_RAIL_W, 0, 0)
-navBacking.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
-navBacking.BackgroundTransparency = 0
+navBacking.BackgroundColor3 = Color3.fromRGB(10, 5, 25)
+navBacking.BackgroundTransparency = 0.25
 navBacking.BorderSizePixel  = 0
 navBacking.ZIndex           = 5
 navBacking.Parent           = screen
+do
+    local gs = Instance.new("UIStroke", navBacking)
+    gs.Color = Color3.fromRGB(130, 70, 220); gs.Transparency = 0.5; gs.Thickness = 1
+    gs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    local gg = Instance.new("UIGradient", navBacking)
+    gg.Rotation = 90
+    gg.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 40, 120)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 5, 25)),
+    })
+    gg.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 0.35),
+    })
+end
 
 -- Left edge separator line (for vertical rail)
 local navSep = Instance.new("Frame")
@@ -316,23 +334,23 @@ local function showPanel(id)
     if activePanelId and navBtns[activePanelId] then
         local old     = navBtns[activePanelId]
         local oldAcc  = old.accent
-        tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(28, 28, 40), BackgroundTransparency = 0.1 })
+        tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.88 })
         tw(old.accentBar, { BackgroundTransparency = 1 })
         tw(old.textLbl,   { TextColor3 = Color3.fromRGB(160, 160, 180) })
         tw(old.iconLbl,   { TextTransparency = 0.3 })
-        if old.stroke then tw(old.stroke, { Transparency = 1 }) end
+        if old.stroke then tw(old.stroke, { Transparency = 0.55 }) end
     end
     activePanelId = id
     if navBtns[id] then
         local cur    = navBtns[id]
         local accent = cur.accent
-        tw(cur.pill,      { BackgroundColor3 = accent, BackgroundTransparency = 0.82 })
+        tw(cur.pill,      { BackgroundColor3 = accent, BackgroundTransparency = 0.55 })
         tw(cur.accentBar, { BackgroundColor3 = accent, BackgroundTransparency = 0 })
         tw(cur.textLbl,   { TextColor3 = Color3.fromRGB(255, 255, 255) })
         tw(cur.iconLbl,   { TextTransparency = 0 })
         if cur.stroke then
             cur.stroke.Color = accent
-            tw(cur.stroke, { Transparency = 0.3 })
+            tw(cur.stroke, { Transparency = 0.1 })
         end
     end
 end
@@ -349,6 +367,7 @@ local function makePanel(name)
     f.ScrollBarImageColor3  = Color3.fromRGB(80, 80, 120)
     f.CanvasSize            = UDim2.new(0, 0, 0, 0)
     f.Visible               = false
+    f.Active                = false   -- pass taps through to tapCatcher
     f.ZIndex                = 3
     f.Parent                = panelHost
     panels[name] = f
@@ -361,8 +380,8 @@ for i, tab in ipairs(NAV_TABS) do
     local pill = Instance.new("TextButton")
     pill.Name                   = "NavPill_"..tab.id
     pill.Size                   = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H)
-    pill.BackgroundColor3       = Color3.fromRGB(28, 28, 40)
-    pill.BackgroundTransparency = 0.1
+    pill.BackgroundColor3       = Color3.fromRGB(255, 255, 255)
+    pill.BackgroundTransparency = 0.88
     pill.BorderSizePixel        = 0
     pill.Text                   = ""
     pill.LayoutOrder            = i
@@ -374,9 +393,9 @@ for i, tab in ipairs(NAV_TABS) do
 
     -- Subtle border stroke (hidden when unselected)
     local pillStroke = Instance.new("UIStroke")
-    pillStroke.Color       = Color3.fromRGB(80, 80, 120)
+    pillStroke.Color       = Color3.fromRGB(200, 180, 255)
     pillStroke.Thickness   = 1.5
-    pillStroke.Transparency = 1
+    pillStroke.Transparency = 0.55
     pillStroke.Parent      = pill
 
     -- Left accent bar (hidden when unselected)
@@ -393,8 +412,8 @@ for i, tab in ipairs(NAV_TABS) do
 
     -- Icon label (fills pill — icon-first for accessibility)
     local iconLbl = Instance.new("TextLabel")
-    iconLbl.Size                 = UDim2.new(1, 0, 0.72, 0)
-    iconLbl.Position             = UDim2.new(0, 0, 0.14, 0)
+    iconLbl.Size                 = UDim2.new(1, 0, 0.56, 0)
+    iconLbl.Position             = UDim2.new(0, 0, 0.06, 0)
     iconLbl.BackgroundTransparency = 1
     iconLbl.Text                 = tab.icon
     iconLbl.TextScaled           = true
@@ -406,15 +425,15 @@ for i, tab in ipairs(NAV_TABS) do
 
     -- Text label (hidden on vertical rail — icons only)
     local textLbl = Instance.new("TextLabel")
-    textLbl.Size                 = UDim2.new(1, -4, 0.22, 0)
-    textLbl.Position             = UDim2.new(0, 2, 0.76, 0)
+    textLbl.Size                 = UDim2.new(1, -4, 0.28, 0)
+    textLbl.Position             = UDim2.new(0, 2, 0.66, 0)
     textLbl.BackgroundTransparency = 1
     textLbl.Text                 = tab.label
     textLbl.TextScaled           = true
-    textLbl.Font                 = Enum.Font.GothamBold
+    textLbl.Font                 = Enum.Font.Gotham
     textLbl.TextColor3           = Color3.fromRGB(160, 160, 180)
     textLbl.ZIndex               = 8
-    textLbl.Visible              = false   -- icons-only on vertical rail
+    textLbl.Visible              = true
     textLbl.Parent               = pill
 
     -- Store refs
@@ -804,12 +823,18 @@ local function playHatchCinematic(petId, isDuplicate, rizzBonus)
     local petDef=petById[petId]
     if not petDef then return end
     local col=RARITY_COLORS[petDef.rarity] or Color3.fromRGB(255,255,255)
+    -- Drumroll sound: plays during build-up, stops at reveal
+    local _ss=game:GetService("SoundService")
+    local drumroll=Instance.new("Sound")
+    drumroll.SoundId="rbxassetid://4946458712"; drumroll.Volume=0.6; drumroll.Looped=true
+    drumroll.Parent=_ss; drumroll:Play()
     hatchOverlay.Visible=true
     TweenService:Create(hatchOverlay,TweenInfo.new(0.25),{BackgroundTransparency=0.08}):Play()
     hatchLbl.Text=petDef.emoji
     hatchLbl.TextSize=1
     TweenService:Create(hatchLbl,TweenInfo.new(0.6,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{TextSize=160}):Play()
     task.wait(0.7)
+    drumroll:Stop(); drumroll:Destroy()  -- reveal moment — stop drumroll here
     hatchLbl.Text=petDef.emoji.."\n"..petDef.rarity.." — "..petDef.name
     hatchLbl.TextColor3=col
     hatchLbl.TextSize=72
