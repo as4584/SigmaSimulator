@@ -159,59 +159,220 @@ local function showAnn(msg)
     end)
 end
 
--- ── NAV BAR ───────────────────────────────────────────────────────────────
-local NAV_TABS={"Upgrades","Pets","Shop","Duels","LB","Spin","Daily","Quests","Achieve","Free"}
-local NAV_COLORS={
-    Upgrades=Color3.fromRGB(40,40,80),Pets=Color3.fromRGB(20,60,20),
-    Shop=Color3.fromRGB(80,40,0),Duels=Color3.fromRGB(80,0,0),
-    LB=Color3.fromRGB(60,60,0),Spin=Color3.fromRGB(80,0,80),
-    Daily=Color3.fromRGB(0,60,80),Quests=Color3.fromRGB(0,80,40),
-    Achieve=Color3.fromRGB(60,40,0),Free=Color3.fromRGB(0,60,60),
+-- ── NAV BAR (modern capsule style) ───────────────────────────────────────
+-- Tab definition: name, icon emoji, accent colour (used for selected state)
+local NAV_TABS = {
+    { id="Upgrades", icon="⚡", label="Upgrades", accent=Color3.fromRGB(100, 80, 255)  },
+    { id="Pets",     icon="🐾", label="Pets",     accent=Color3.fromRGB(60, 200, 100)  },
+    { id="Shop",     icon="🥚", label="Shop",     accent=Color3.fromRGB(255, 160, 30)  },
+    { id="Duels",    icon="⚔️",  label="Duels",    accent=Color3.fromRGB(255, 60, 80)   },
+    { id="LB",       icon="🏆", label="Ranks",    accent=Color3.fromRGB(255, 215, 0)   },
+    { id="Spin",     icon="🎡", label="Spin",     accent=Color3.fromRGB(220, 60, 255)  },
+    { id="Daily",    icon="📅", label="Daily",    accent=Color3.fromRGB(40, 180, 255)  },
+    { id="Quests",   icon="📋", label="Quests",   accent=Color3.fromRGB(60, 220, 140)  },
+    { id="Achieve",  icon="🏅", label="Achieve",  accent=Color3.fromRGB(255, 140, 30)  },
+    { id="Free",     icon="🎁", label="Free",     accent=Color3.fromRGB(40, 220, 200)  },
 }
-local navBar=Instance.new("ScrollingFrame")
-navBar.Size=UDim2.new(1,0,0,52); navBar.Position=UDim2.new(0,0,1,-52)
-navBar.BackgroundColor3=Color3.fromRGB(10,10,10); navBar.BorderSizePixel=0
-navBar.ScrollBarThickness=0; navBar.CanvasSize=UDim2.new(0,#NAV_TABS*80,0,0)
-navBar.ScrollingDirection=Enum.ScrollingDirection.X; navBar.Parent=screen
-local navLayout=Instance.new("UIListLayout"); navLayout.FillDirection=Enum.FillDirection.Horizontal
-navLayout.SortOrder=Enum.SortOrder.LayoutOrder; navLayout.Parent=navBar
+
+-- Pill dimensions
+local NAV_BTN_W   = 88   -- px, each capsule
+local NAV_BTN_H   = 52   -- px, bar inner height
+local NAV_BAR_H   = 68   -- px, total bar height (includes padding)
+local NAV_PADDING = 8    -- gap between pills
+
+-- ── Bar backing surface ───────────────────────────────────────────────────
+local navBacking = Instance.new("Frame")
+navBacking.Name             = "NavBacking"
+navBacking.Size             = UDim2.new(1, 0, 0, NAV_BAR_H)
+navBacking.Position         = UDim2.new(0, 0, 1, -NAV_BAR_H)
+navBacking.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+navBacking.BackgroundTransparency = 0
+navBacking.BorderSizePixel  = 0
+navBacking.ZIndex           = 5
+navBacking.Parent           = screen
+
+-- Top edge separator line
+local navSep = Instance.new("Frame")
+navSep.Size             = UDim2.new(1, 0, 0, 1)
+navSep.Position         = UDim2.new(0, 0, 0, 0)
+navSep.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+navSep.BorderSizePixel  = 0
+navSep.ZIndex           = 6
+navSep.Parent           = navBacking
+
+-- Scrolling pill row inside the backing
+local navBar = Instance.new("ScrollingFrame")
+navBar.Name                  = "NavBar"
+navBar.Size                  = UDim2.new(1, -16, 1, -NAV_PADDING)
+navBar.Position               = UDim2.new(0, 8, 0, NAV_PADDING // 2)
+navBar.BackgroundTransparency = 1
+navBar.BorderSizePixel        = 0
+navBar.ScrollBarThickness     = 0
+navBar.ScrollingDirection     = Enum.ScrollingDirection.X
+navBar.CanvasSize             = UDim2.new(0, #NAV_TABS * (NAV_BTN_W + NAV_PADDING), 0, 0)
+navBar.ZIndex                 = 6
+navBar.Parent                 = navBacking
+navBar.AutomaticCanvasSize    = Enum.AutomaticSize.None
+
+local navLayout = Instance.new("UIListLayout")
+navLayout.FillDirection      = Enum.FillDirection.Horizontal
+navLayout.SortOrder          = Enum.SortOrder.LayoutOrder
+navLayout.Padding            = UDim.new(0, NAV_PADDING)
+navLayout.VerticalAlignment  = Enum.VerticalAlignment.Center
+navLayout.Parent             = navBar
 
 -- ── PANELS container ──────────────────────────────────────────────────────
-local panelHost=Instance.new("Frame")
-panelHost.Size=UDim2.new(1,0,1,-52); panelHost.Position=UDim2.new(0,0,0,0)
-panelHost.BackgroundTransparency=1; panelHost.ClipsDescendants=true; panelHost.Parent=screen
+local panelHost = Instance.new("Frame")
+panelHost.Name                  = "PanelHost"
+panelHost.Size                  = UDim2.new(1, 0, 1, -NAV_BAR_H)
+panelHost.Position              = UDim2.new(0, 0, 0, 0)
+panelHost.BackgroundTransparency = 1
+panelHost.ClipsDescendants      = true
+panelHost.ZIndex                = 2
+panelHost.Parent                = screen
 
-local activePanel=nil
-local navBtns={}
+local activePanel    = nil
+local activePanelId  = nil
+local navBtns        = {}   -- id → { pill, iconLbl, textLbl, accentBar }
 
-local function showPanel(name)
-    if activePanel then activePanel.Visible=false end
-    local p=panelHost:FindFirstChild(name)
-    if p then p.Visible=true ; activePanel=p end
-    -- Highlight active nav
-    for n, b in pairs(navBtns) do
-        b.BackgroundColor3 = n==name and Color3.fromRGB(80,80,200) or (NAV_COLORS[n] or Color3.fromRGB(30,30,30))
+-- ── Helper: tween a property ──────────────────────────────────────────────
+local function tw(inst, props, t)
+    TweenService:Create(inst, TweenInfo.new(t or 0.15, Enum.EasingStyle.Quad), props):Play()
+end
+
+-- ── showPanel ─────────────────────────────────────────────────────────────
+local function showPanel(id)
+    -- Hide old panel
+    if activePanel then activePanel.Visible = false end
+    local p = panelHost:FindFirstChild(id)
+    if p then p.Visible = true; activePanel = p end
+    -- Deselect old, select new
+    if activePanelId and navBtns[activePanelId] then
+        local old     = navBtns[activePanelId]
+        local oldAcc  = old.accent
+        tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(28, 28, 40), BackgroundTransparency = 0.1 })
+        tw(old.accentBar, { BackgroundTransparency = 1 })
+        tw(old.textLbl,   { TextColor3 = Color3.fromRGB(160, 160, 180) })
+        tw(old.iconLbl,   { TextTransparency = 0.3 })
+        if old.stroke then tw(old.stroke, { Transparency = 1 }) end
+    end
+    activePanelId = id
+    if navBtns[id] then
+        local cur    = navBtns[id]
+        local accent = cur.accent
+        tw(cur.pill,      { BackgroundColor3 = accent, BackgroundTransparency = 0.82 })
+        tw(cur.accentBar, { BackgroundColor3 = accent, BackgroundTransparency = 0 })
+        tw(cur.textLbl,   { TextColor3 = Color3.fromRGB(255, 255, 255) })
+        tw(cur.iconLbl,   { TextTransparency = 0 })
+        if cur.stroke then
+            cur.stroke.Color = accent
+            tw(cur.stroke, { Transparency = 0.3 })
+        end
     end
 end
 
-local panels={}
+local panels = {}
 local function makePanel(name)
-    local f=Instance.new("ScrollingFrame")
-    f.Name=name; f.Size=UDim2.new(1,0,1,0); f.Position=UDim2.new(0,0,0,0)
-    f.BackgroundColor3=Color3.fromRGB(16,16,24); f.BorderSizePixel=0
-    f.ScrollBarThickness=6; f.CanvasSize=UDim2.new(0,0,0,0)
-    f.Visible=false; f.Parent=panelHost
-    panels[name]=f; return f
+    local f = Instance.new("ScrollingFrame")
+    f.Name                  = name
+    f.Size                  = UDim2.new(1, 0, 1, 0)
+    f.Position              = UDim2.new(0, 0, 0, 0)
+    f.BackgroundColor3      = Color3.fromRGB(14, 14, 22)
+    f.BorderSizePixel       = 0
+    f.ScrollBarThickness    = 4
+    f.ScrollBarImageColor3  = Color3.fromRGB(80, 80, 120)
+    f.CanvasSize            = UDim2.new(0, 0, 0, 0)
+    f.Visible               = false
+    f.ZIndex                = 3
+    f.Parent                = panelHost
+    panels[name] = f
+    return f
 end
 
-for i, name in ipairs(NAV_TABS) do
-    local b=btn({Name="Nav_"..name, Size=UDim2.new(0,78,1,0),LayoutOrder=i,
-        BackgroundColor3=NAV_COLORS[name] or Color3.fromRGB(30,30,30),
-        Text=name,TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
-        Font=Enum.Font.GothamBold},navBar)
-    navBtns[name]=b
-    local target=name
-    b.MouseButton1Click:Connect(function() showPanel(target) end)
+-- ── Build each nav capsule ─────────────────────────────────────────────────
+for i, tab in ipairs(NAV_TABS) do
+    -- Outer pill
+    local pill = Instance.new("TextButton")
+    pill.Name                   = "NavPill_"..tab.id
+    pill.Size                   = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H - 4)
+    pill.BackgroundColor3       = Color3.fromRGB(28, 28, 40)
+    pill.BackgroundTransparency = 0.1
+    pill.BorderSizePixel        = 0
+    pill.Text                   = ""
+    pill.LayoutOrder            = i
+    pill.ZIndex                 = 7
+    pill.Parent                 = navBar
+    local pillCorner = Instance.new("UICorner")
+    pillCorner.CornerRadius = UDim.new(0, 24)
+    pillCorner.Parent       = pill
+
+    -- Subtle border stroke (hidden when unselected)
+    local pillStroke = Instance.new("UIStroke")
+    pillStroke.Color       = Color3.fromRGB(80, 80, 120)
+    pillStroke.Thickness   = 1.5
+    pillStroke.Transparency = 1
+    pillStroke.Parent      = pill
+
+    -- Bottom accent bar (hidden when unselected)
+    local accentBar = Instance.new("Frame")
+    accentBar.Size                  = UDim2.new(0.6, 0, 0, 3)
+    accentBar.AnchorPoint           = Vector2.new(0.5, 1)
+    accentBar.Position              = UDim2.new(0.5, 0, 1, -1)
+    accentBar.BackgroundColor3      = tab.accent
+    accentBar.BackgroundTransparency = 1
+    accentBar.BorderSizePixel       = 0
+    accentBar.ZIndex                = 8
+    accentBar.Parent                = pill
+    Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
+
+    -- Icon label (top half)
+    local iconLbl = Instance.new("TextLabel")
+    iconLbl.Size                 = UDim2.new(1, 0, 0.54, 0)
+    iconLbl.Position             = UDim2.new(0, 0, 0, 1)
+    iconLbl.BackgroundTransparency = 1
+    iconLbl.Text                 = tab.icon
+    iconLbl.TextScaled           = true
+    iconLbl.Font                 = Enum.Font.GothamBold
+    iconLbl.TextColor3           = Color3.fromRGB(255, 255, 255)
+    iconLbl.TextTransparency     = 0.3
+    iconLbl.ZIndex               = 8
+    iconLbl.Parent               = pill
+
+    -- Text label (bottom half)
+    local textLbl = Instance.new("TextLabel")
+    textLbl.Size                 = UDim2.new(1, -4, 0.38, 0)
+    textLbl.Position             = UDim2.new(0, 2, 0.56, 0)
+    textLbl.BackgroundTransparency = 1
+    textLbl.Text                 = tab.label
+    textLbl.TextScaled           = true
+    textLbl.Font                 = Enum.Font.GothamBold
+    textLbl.TextColor3           = Color3.fromRGB(160, 160, 180)
+    textLbl.ZIndex               = 8
+    textLbl.Parent               = pill
+
+    -- Store refs
+    navBtns[tab.id] = {
+        pill      = pill,
+        iconLbl   = iconLbl,
+        textLbl   = textLbl,
+        accentBar = accentBar,
+        stroke    = pillStroke,
+        accent    = tab.accent,
+    }
+
+    -- Press animation + panel switch
+    local tabId = tab.id
+    pill.MouseButton1Down:Connect(function()
+        tw(pill, { Size = UDim2.new(0, NAV_BTN_W - 6, 0, NAV_BTN_H - 10) }, 0.08)
+    end)
+    pill.MouseButton1Up:Connect(function()
+        tw(pill, { Size = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H - 4) }, 0.12)
+        showPanel(tabId)
+    end)
+    -- Touch support (fires after Up on mobile too, but MouseButton1Up covers it)
+    pill.TouchTap:Connect(function()
+        showPanel(tabId)
+    end)
 end
 
 -- ── PANEL: Upgrades ───────────────────────────────────────────────────────
