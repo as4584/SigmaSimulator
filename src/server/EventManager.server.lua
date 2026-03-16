@@ -1,0 +1,3 @@
+-- EventManager.server.lua
+-- All event scheduling, world Part spawning, and reward logic is handled
+-- in GameManager.server.lua. This file is intentionally a placeholder.

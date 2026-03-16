@@ -1,0 +1,66 @@
+{
+    "name": "SigmaSimulator",
+    "tree": {
+        "$className": "DataModel",
+        "ServerScriptService": {
+            "$className": "ServerScriptService",
+            "GameManager": {
+                "$path": "src/server/GameManager.server.lua"
+            },
+            "DataStore": {
+                "$path": "src/server/DataStore.server.lua"
+            },
+            "EventManager": {
+                "$path": "src/server/EventManager.server.lua"
+            },
+            "PetManager": {
+                "$path": "src/server/PetManager.server.lua"
+            }
+        },
+        "StarterPlayer": {
+            "$className": "StarterPlayer",
+            "StarterPlayerScripts": {
+                "$className": "StarterPlayerScripts",
+                "ClickHandler": {
+                    "$path": "src/client/ClickHandler.client.lua"
+                },
+                "UIManager": {
+                    "$path": "src/client/UIManager.client.lua"
+                },
+                "SoundManager": {
+                    "$path": "src/client/SoundManager.client.lua"
+                },
+                "AuraManager": {
+                    "$path": "src/client/AuraManager.client.lua"
+                },
+                "ComboTracker": {
+                    "$path": "src/client/ComboTracker.client.lua"
+                },
+                "MapWatcher": {
+                    "$path": "src/client/MapWatcher.client.lua"
+                },
+                "CharacterManager": {
+                    "$path": "src/client/CharacterManager.client.lua"
+                }
+            }
+        },
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "Upgrades": {
+                "$path": "src/shared/Upgrades.lua"
+            },
+            "Pets": {
+                "$path": "src/shared/Pets.lua"
+            },
+            "Eggs": {
+                "$path": "src/shared/Eggs.lua"
+            },
+            "Ranks": {
+                "$path": "src/shared/Ranks.lua"
+            },
+            "Events": {
+                "$path": "src/shared/Events.lua"
+            }
+        }
+    }
+}

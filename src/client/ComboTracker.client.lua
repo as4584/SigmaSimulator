@@ -1,0 +1,3 @@
+-- ComboTracker.client.lua
+-- Combo tracking is handled directly in ClickHandler.client.lua
+-- This file intentionally left as a placeholder

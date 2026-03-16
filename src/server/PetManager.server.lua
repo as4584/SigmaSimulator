@@ -1,0 +1,3 @@
+-- PetManager.server.lua
+-- Pet idle income tick is handled directly in GameManager.server.lua
+-- This file intentionally left as a placeholder

@@ -1,0 +1,3 @@
+-- MapWatcher.client.lua
+-- Map progression (buildings appearing at sigma milestones) — planned for future sprint
+-- This file intentionally left as a placeholder

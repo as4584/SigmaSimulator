@@ -1,0 +1,3 @@
+-- DataStore.server.lua
+-- DataStore logic is handled directly in GameManager.server.lua
+-- This file intentionally left as a placeholder
