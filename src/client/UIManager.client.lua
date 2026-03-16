@@ -51,6 +51,79 @@ local screen=Instance.new("ScreenGui")
 screen.Name="SigmaGui"; screen.ResetOnSpawn=false
 screen.IgnoreGuiInset=true; screen.Parent=playerGui
 
+-- ── Tap-anywhere infrastructure ───────────────────────────────────────────
+local ClickRemote = Remotes:WaitForChild("ClickSigma")
+local lastTapPos  = Vector2.new(0.5, 0.72)
+
+-- Expanding ring ripple at tap position
+local function spawnTapRipple(pos)
+    local ring = Instance.new("Frame")
+    ring.Size                 = UDim2.new(0, 20, 0, 20)
+    ring.AnchorPoint          = Vector2.new(0.5, 0.5)
+    ring.Position             = UDim2.new(pos.X, 0, pos.Y, 0)
+    ring.BackgroundTransparency = 1
+    ring.BorderSizePixel      = 0
+    ring.ZIndex               = 18
+    ring.Parent               = screen
+    local stroke = Instance.new("UIStroke", ring)
+    stroke.Color     = Color3.fromRGB(255, 215, 0)
+    stroke.Thickness = 2
+    Instance.new("UICorner", ring).CornerRadius = UDim.new(1, 0)
+    TweenService:Create(ring, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {Size=UDim2.new(0, 90, 0, 90)}):Play()
+    TweenService:Create(stroke, TweenInfo.new(0.4), {Transparency=1}):Play()
+    task.delay(0.45, function() ring:Destroy() end)
+end
+
+-- Full-screen transparent click catcher (ZIndex=1; all panels are ZIndex 2-8 so they intercept first)
+local tapCatcher = Instance.new("TextButton")
+tapCatcher.Name                   = "TapCatcher"
+tapCatcher.Size                   = UDim2.new(1, 0, 1, 0)
+tapCatcher.BackgroundTransparency = 1
+tapCatcher.Text                   = ""
+tapCatcher.ZIndex                 = 1
+tapCatcher.AutoButtonColor        = false
+tapCatcher.Parent                 = screen
+tapCatcher.MouseButton1Down:Connect(function()
+    local mp = UIS:GetMouseLocation()
+    local vp = workspace.CurrentCamera.ViewportSize
+    lastTapPos = Vector2.new(mp.X / vp.X, mp.Y / vp.Y)
+    ClickRemote:FireServer()
+    spawnTapRipple(lastTapPos)
+end)
+tapCatcher.TouchTap:Connect(function(tps)
+    if tps and #tps > 0 then
+        local vp = workspace.CurrentCamera.ViewportSize
+        lastTapPos = Vector2.new(tps[1].X / vp.X, tps[1].Y / vp.Y)
+    end
+    ClickRemote:FireServer()
+    spawnTapRipple(lastTapPos)
+end)
+
+-- Onboarding hint — fades on first tap or after 5 seconds
+local _hintDone = false
+local tapHint = Instance.new("Frame")
+tapHint.Size                   = UDim2.new(0, 240, 0, 52)
+tapHint.AnchorPoint            = Vector2.new(0.5, 1)
+tapHint.Position               = UDim2.new(0.5, 0, 1, -90)
+tapHint.BackgroundColor3       = Color3.fromRGB(0, 0, 0)
+tapHint.BackgroundTransparency = 0.35
+tapHint.ZIndex                 = 12
+tapHint.Parent                 = screen
+corner(tapHint, 26)
+local tapHintLbl = lbl({Size=UDim2.new(1,0,1,0), Text="👆  Tap anywhere!",
+    TextColor3=Color3.fromRGB(255,255,255), TextScaled=true,
+    Font=Enum.Font.GothamBold, ZIndex=13}, tapHint)
+local function dismissHint()
+    if _hintDone then return end; _hintDone = true
+    TweenService:Create(tapHint,    TweenInfo.new(0.5), {BackgroundTransparency=1}):Play()
+    TweenService:Create(tapHintLbl, TweenInfo.new(0.5), {TextTransparency=1}):Play()
+    task.delay(0.6, function() if tapHint and tapHint.Parent then tapHint:Destroy() end end)
+end
+tapCatcher.MouseButton1Down:Connect(dismissHint)
+tapCatcher.TouchTap:Connect(function() dismissHint() end)
+task.delay(5, dismissHint)
+
 -- ── TOP RIGHT: Rizz counter ───────────────────────────────────────────────
 local rizzFrame=Instance.new("Frame")
 rizzFrame.Size=UDim2.new(0,180,0,46); rizzFrame.Position=UDim2.new(1,-190,0,12)
@@ -93,15 +166,6 @@ corner(progBg,3)
 local progBar=Instance.new("Frame")
 progBar.Size=UDim2.new(0,0,1,0); progBar.BackgroundColor3=Color3.fromRGB(80,200,255)
 progBar.BorderSizePixel=0; progBar.Parent=progBg; corner(progBar,3)
-
--- ── CLICK BUTTON ──────────────────────────────────────────────────────────
-local clickBtn=btn({Name="ClickBtn",Size=UDim2.new(0,200,0,200),
-    AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.72,0),
-    BackgroundColor3=Color3.fromRGB(20,20,20),Text="😎",TextScaled=true,
-    Font=Enum.Font.GothamBold,ZIndex=2},screen)
-corner(clickBtn,100)
-local clickStroke=Instance.new("UIStroke",clickBtn)
-clickStroke.Color=Color3.fromRGB(255,215,0); clickStroke.Thickness=3
 
 -- ── PRESTIGE BUTTON ───────────────────────────────────────────────────────
 local prestigeBtn=btn({Name="PrestigeBtn",Size=UDim2.new(0,240,0,48),
@@ -162,16 +226,16 @@ end
 -- ── NAV BAR (modern capsule style) ───────────────────────────────────────
 -- Tab definition: name, icon emoji, accent colour (used for selected state)
 local NAV_TABS = {
-    { id="Upgrades", icon="⚡", label="Upgrades", accent=Color3.fromRGB(100, 80, 255)  },
-    { id="Pets",     icon="🐾", label="Pets",     accent=Color3.fromRGB(60, 200, 100)  },
-    { id="Shop",     icon="🥚", label="Shop",     accent=Color3.fromRGB(255, 160, 30)  },
-    { id="Duels",    icon="⚔️",  label="Duels",    accent=Color3.fromRGB(255, 60, 80)   },
-    { id="LB",       icon="🏆", label="Ranks",    accent=Color3.fromRGB(255, 215, 0)   },
-    { id="Spin",     icon="🎡", label="Spin",     accent=Color3.fromRGB(220, 60, 255)  },
-    { id="Daily",    icon="📅", label="Daily",    accent=Color3.fromRGB(40, 180, 255)  },
-    { id="Quests",   icon="📋", label="Quests",   accent=Color3.fromRGB(60, 220, 140)  },
-    { id="Achieve",  icon="🏅", label="Achieve",  accent=Color3.fromRGB(255, 140, 30)  },
-    { id="Free",     icon="🎁", label="Free",     accent=Color3.fromRGB(40, 220, 200)  },
+    { id="Upgrades", icon="⚡", label="Boost",   accent=Color3.fromRGB(100, 80, 255)  },
+    { id="Pets",     icon="🐾", label="Pets",    accent=Color3.fromRGB(60, 200, 100)  },
+    { id="Shop",     icon="🥚", label="Shop",    accent=Color3.fromRGB(255, 160, 30)  },
+    { id="Duels",    icon="⚔️",  label="Duel",    accent=Color3.fromRGB(255, 60, 80)   },
+    { id="LB",       icon="🏆", label="Rank",    accent=Color3.fromRGB(255, 215, 0)   },
+    { id="Spin",     icon="🎡", label="Spin",    accent=Color3.fromRGB(220, 60, 255)  },
+    { id="Daily",    icon="📅", label="Daily",   accent=Color3.fromRGB(40, 180, 255)  },
+    { id="Quests",   icon="📋", label="Quests",  accent=Color3.fromRGB(60, 220, 140)  },
+    { id="Achieve",  icon="🏅", label="Awards",  accent=Color3.fromRGB(255, 140, 30)  },
+    { id="Free",     icon="🎁", label="Free",    accent=Color3.fromRGB(40, 220, 200)  },
 }
 
 -- Pill dimensions
@@ -801,29 +865,21 @@ local CRIT_COLORS={
     ["NICE"]      =Color3.fromRGB(255,215,0),
     [""]          =Color3.fromRGB(255,255,255),
 }
-local function spawnFloat(gain, critLabel)
+local function spawnFloat(gain, critLabel, normX, normY)
+    normX = normX or 0.5
+    normY = normY or 0.72
     local fl=Instance.new("TextLabel")
     fl.Size=UDim2.new(0,180,0,52); fl.AnchorPoint=Vector2.new(0.5,0.5)
-    fl.Position=UDim2.new(0.5,math.random(-80,80),1,-295)
+    fl.Position=UDim2.new(normX, math.random(-60,60), normY, 0)
     fl.BackgroundTransparency=1
     fl.TextColor3=CRIT_COLORS[critLabel] or Color3.fromRGB(255,255,255)
     fl.TextScaled=true; fl.Font=Enum.Font.GothamBold; fl.ZIndex=10
     fl.Text=critLabel~="" and (critLabel.."! +"..gain.."σ") or ("+"..gain.."σ")
     fl.Parent=screen
     TweenService:Create(fl,TweenInfo.new(0.75,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),
-        {Position=UDim2.new(0.5,math.random(-80,80),1,-400),TextTransparency=1}):Play()
+        {Position=UDim2.new(normX, math.random(-60,60), normY-0.15, 0), TextTransparency=1}):Play()
     task.delay(0.85, function() fl:Destroy() end)
 end
-
--- ── Click button wiring ───────────────────────────────────────────────────
-local ClickRemote=Remotes:WaitForChild("ClickSigma")
-clickBtn.MouseButton1Click:Connect(function()
-    ClickRemote:FireServer()
-    TweenService:Create(clickBtn,TweenInfo.new(0.06),{Size=UDim2.new(0,180,0,180)}):Play()
-    task.delay(0.1, function()
-        TweenService:Create(clickBtn,TweenInfo.new(0.1),{Size=UDim2.new(0,200,0,200)}):Play()
-    end)
-end)
 
 -- ── Prestige / Ascension buttons ─────────────────────────────────────────
 prestigeBtn.MouseButton1Click:Connect(function()
@@ -895,7 +951,7 @@ Remotes:WaitForChild("UpdateUI").OnClientEvent:Connect(function(data)
 
     -- Floating number
     if data.lastGain and data.lastGain>0 then
-        spawnFloat(data.lastGain, data.critLabel or "")
+        spawnFloat(data.lastGain, data.critLabel or "", lastTapPos.X, lastTapPos.Y)
     end
 
     -- Upgrade affordability
@@ -1133,6 +1189,14 @@ Remotes:WaitForChild("DuelCancel").OnClientEvent:Connect(function(data)
     duelStatus.Text=reason=="declined" and "❌ Challenge declined."
         or reason=="opponent_left" and "❌ Opponent left the game."
         or "❌ Duel cancelled."
+end)
+
+-- ── Space key click ──────────────────────────────────────────────────────
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.Space then
+        ClickRemote:FireServer()
+    end
 end)
 
 -- ── Default panel on load ─────────────────────────────────────────────────
