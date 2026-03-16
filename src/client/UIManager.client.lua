@@ -56,7 +56,8 @@ local NAV_PADDING = 8    -- gap between pills
 -- ── Root ScreenGui ─────────────────────────────────────────────────────────
 local screen=Instance.new("ScreenGui")
 screen.Name="SigmaGui"; screen.ResetOnSpawn=false
-screen.IgnoreGuiInset=true; screen.Parent=playerGui
+screen.IgnoreGuiInset=true; screen.ZIndexBehavior=Enum.ZIndexBehavior.Global
+screen.Parent=playerGui
 
 -- ── Tap-anywhere infrastructure ───────────────────────────────────────────
 local ClickRemote = Remotes:WaitForChild("ClickSigma")
@@ -325,22 +326,45 @@ local function tw(inst, props, t)
 end
 
 -- ── showPanel ─────────────────────────────────────────────────────────────
-local function showPanel(id)
-    -- Hide old panel
+local function closePanel()
     if activePanel then activePanel.Visible = false end
-    local p = panelHost:FindFirstChild(id)
-    if p then p.Visible = true; activePanel = p end
-    -- Deselect old, select new
     if activePanelId and navBtns[activePanelId] then
-        local old     = navBtns[activePanelId]
-        local oldAcc  = old.accent
+        local old = navBtns[activePanelId]
         tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.88 })
         tw(old.accentBar, { BackgroundTransparency = 1 })
         tw(old.textLbl,   { TextColor3 = Color3.fromRGB(160, 160, 180) })
         tw(old.iconLbl,   { TextTransparency = 0.3 })
         if old.stroke then tw(old.stroke, { Transparency = 0.55 }) end
     end
+    activePanel   = nil
+    activePanelId = nil
+end
+
+local function showPanel(id)
+    -- Toggle: tapping the already-open pill closes it
+    if activePanelId == id then
+        closePanel()
+        return
+    end
+    -- Deselect the previously open pill
+    if activePanelId and navBtns[activePanelId] then
+        local old = navBtns[activePanelId]
+        tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.88 })
+        tw(old.accentBar, { BackgroundTransparency = 1 })
+        tw(old.textLbl,   { TextColor3 = Color3.fromRGB(160, 160, 180) })
+        tw(old.iconLbl,   { TextTransparency = 0.3 })
+        if old.stroke then tw(old.stroke, { Transparency = 0.55 }) end
+    end
+    -- Hide old panel
+    if activePanel then activePanel.Visible = false end
+    -- Show new panel
     activePanelId = id
+    local p = panelHost:FindFirstChild(id)
+    if p then
+        p.Visible = true
+        activePanel = p
+    end
+    -- Select new pill
     if navBtns[id] then
         local cur    = navBtns[id]
         local accent = cur.accent
@@ -368,7 +392,7 @@ local function makePanel(name)
     f.CanvasSize            = UDim2.new(0, 0, 0, 0)
     f.Visible               = false
     f.Active                = false   -- pass taps through to tapCatcher
-    f.ZIndex                = 3
+    f.ZIndex                = 9        -- above nav rail (5-8), below float labels (10)
     f.Parent                = panelHost
     panels[name] = f
     return f
@@ -1219,13 +1243,12 @@ Remotes:WaitForChild("DuelCancel").OnClientEvent:Connect(function(data)
         or "❌ Duel cancelled."
 end)
 
--- ── Space key click ──────────────────────────────────────────────────────
+-- ── Space key click (with immediate ripple feedback) ─────────────────────
 UIS.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Space then
+        lastTapPos = Vector2.new(0.5, 0.65)   -- centre of screen
         ClickRemote:FireServer()
+        spawnTapRipple(lastTapPos)            -- immediate visual feedback
     end
 end)
-
--- ── Default panel on load ─────────────────────────────────────────────────
-showPanel("Upgrades")
