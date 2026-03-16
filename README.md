@@ -2,9 +2,43 @@
 
 A Roblox brainrot idle clicker game built with Rojo + VS Code.
 
+**Current Version**: V4  
+**GitHub**: https://github.com/as4584/SigmaSimulator.git  
+**DataStore**: `SigmaSimV4`
+
 ---
 
-# 👩‍🎨 Asset Contributor Guide (For Builders!)
+## 🎮 Game Systems (V4)
+
+| System | Status |
+|--------|--------|
+| Click → earn Sigma (4-tier crits) | ✅ |
+| Rank ladder (12 ranks) | ✅ |
+| Upgrade tree (10 upgrades) | ✅ |
+| Pet system (hatch, equip, evolve) | ✅ |
+| Egg shop (3 eggs, rarity pool) | ✅ |
+| Spin wheel (8 prizes, free/paid) | ✅ |
+| Daily rewards (10-day streak) | ✅ |
+| Quests (8 quests) | ✅ |
+| Achievements (12 achievements) | ✅ |
+| Free reward slots (3 timed) | ✅ |
+| Sigma Duels (1v1 click race) | ✅ |
+| Prestige + Ascension | ✅ |
+| God mode flash | ✅ |
+| Leaderboard (top 5) | ✅ |
+| Co-op boost (+20%) | ✅ |
+| Events (6 types, world Parts) | ✅ |
+| Offline earnings (up to 4h) | ✅ |
+| Tap-anywhere input (no click button) | ✅ |
+| Space key support | ✅ |
+
+## 🐛 Known Issues (as of Chat 2)
+
+- **Floating sigma numbers not appearing** after taps — clicks work (sigma accrues, GodMode fires) but `spawnFloat` and `spawnTapRipple` may be blocked by `panelHost` frame intercepting input
+- **Nav bar is horizontal bottom bar** — 10 buttons, too cluttered on mobile. Planned: vertical right-side rail, icon-only pills
+
+---
+
 
 Hey! This is your guide for adding maps, models, pets and accessories to the game. You handle the creative 3D side — I handle wiring it into the code. Here's everything you need to know.
 
