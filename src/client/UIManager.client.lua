@@ -56,8 +56,7 @@ local NAV_PADDING = 8    -- gap between pills
 -- ── Root ScreenGui ─────────────────────────────────────────────────────────
 local screen=Instance.new("ScreenGui")
 screen.Name="SigmaGui"; screen.ResetOnSpawn=false
-screen.IgnoreGuiInset=true
-screen.Parent=playerGui
+screen.IgnoreGuiInset=true; screen.Parent=playerGui
 
 -- ── Tap-anywhere infrastructure ───────────────────────────────────────────
 local ClickRemote = Remotes:WaitForChild("ClickSigma")
@@ -83,32 +82,29 @@ local function spawnTapRipple(pos)
     task.delay(0.45, function() ring:Destroy() end)
 end
 
--- ── Unified input: mouse, touch, keyboard all route through UIS ──────────
--- Using UserInputService instead of a TextButton avoids all ZIndex/Active
--- conflicts.  The `gameProcessed` flag is true when a GUI element (pill,
--- panel button, text box) consumed the input, so we only fire ClickSigma
--- on "empty" taps.
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    local fire = false
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        local mp = UIS:GetMouseLocation()
+-- Full-screen transparent click catcher (ZIndex=1; all panels are ZIndex 2-8 so they intercept first)
+local tapCatcher = Instance.new("TextButton")
+tapCatcher.Name                   = "TapCatcher"
+tapCatcher.Size                   = UDim2.new(1, 0, 1, 0)
+tapCatcher.BackgroundTransparency = 1
+tapCatcher.Text                   = ""
+tapCatcher.ZIndex                 = 1
+tapCatcher.AutoButtonColor        = false
+tapCatcher.Parent                 = screen
+tapCatcher.MouseButton1Down:Connect(function()
+    local mp = UIS:GetMouseLocation()
+    local vp = workspace.CurrentCamera.ViewportSize
+    lastTapPos = Vector2.new(mp.X / vp.X, mp.Y / vp.Y)
+    ClickRemote:FireServer()
+    spawnTapRipple(lastTapPos)
+end)
+tapCatcher.TouchTap:Connect(function(tps)
+    if tps and #tps > 0 then
         local vp = workspace.CurrentCamera.ViewportSize
-        lastTapPos = Vector2.new(mp.X / vp.X, mp.Y / vp.Y)
-        fire = true
-    elseif input.UserInputType == Enum.UserInputType.Touch then
-        local pos = input.Position
-        local vp = workspace.CurrentCamera.ViewportSize
-        lastTapPos = Vector2.new(pos.X / vp.X, pos.Y / vp.Y)
-        fire = true
-    elseif input.KeyCode == Enum.KeyCode.Space then
-        lastTapPos = Vector2.new(0.5, 0.65)
-        fire = true
+        lastTapPos = Vector2.new(tps[1].X / vp.X, tps[1].Y / vp.Y)
     end
-    if fire then
-        ClickRemote:FireServer()
-        spawnTapRipple(lastTapPos)
-    end
+    ClickRemote:FireServer()
+    spawnTapRipple(lastTapPos)
 end)
 
 -- Onboarding hint — fades on first tap or after 5 seconds
@@ -131,12 +127,8 @@ local function dismissHint()
     TweenService:Create(tapHintLbl, TweenInfo.new(0.5), {TextTransparency=1}):Play()
     task.delay(0.6, function() if tapHint and tapHint.Parent then tapHint:Destroy() end end)
 end
-UIS.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-    or input.UserInputType == Enum.UserInputType.Touch then
-        dismissHint()
-    end
-end)
+tapCatcher.MouseButton1Down:Connect(dismissHint)
+tapCatcher.TouchTap:Connect(function() dismissHint() end)
 task.delay(5, dismissHint)
 
 -- ── TOP RIGHT: Rizz counter ───────────────────────────────────────────────
@@ -315,10 +307,11 @@ navLayout.Parent              = navBar
 -- ── PANELS container ──────────────────────────────────────────────────────
 local panelHost = Instance.new("Frame")
 panelHost.Name                  = "PanelHost"
-panelHost.Size                  = UDim2.new(1, -NAV_RAIL_W, 1, -145)
-panelHost.Position              = UDim2.new(0, 0, 0, 145)
+panelHost.Size                  = UDim2.new(1, -NAV_RAIL_W, 1, 0)
+panelHost.Position              = UDim2.new(0, 0, 0, 0)
 panelHost.BackgroundTransparency = 1
 panelHost.ClipsDescendants      = true
+panelHost.Active                = false   -- Bug 1 fix: pass clicks through to tapCatcher
 panelHost.ZIndex                = 2
 panelHost.Parent                = screen
 
@@ -332,45 +325,22 @@ local function tw(inst, props, t)
 end
 
 -- ── showPanel ─────────────────────────────────────────────────────────────
-local function closePanel()
-    if activePanel then activePanel.Visible = false end
-    if activePanelId and navBtns[activePanelId] then
-        local old = navBtns[activePanelId]
-        tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.88 })
-        tw(old.accentBar, { BackgroundTransparency = 1 })
-        tw(old.textLbl,   { TextColor3 = Color3.fromRGB(160, 160, 180) })
-        tw(old.iconLbl,   { TextTransparency = 0.3 })
-        if old.stroke then tw(old.stroke, { Transparency = 0.55 }) end
-    end
-    activePanel   = nil
-    activePanelId = nil
-end
-
 local function showPanel(id)
-    -- Toggle: tapping the already-open pill closes it
-    if activePanelId == id then
-        closePanel()
-        return
-    end
-    -- Deselect the previously open pill
-    if activePanelId and navBtns[activePanelId] then
-        local old = navBtns[activePanelId]
-        tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.88 })
-        tw(old.accentBar, { BackgroundTransparency = 1 })
-        tw(old.textLbl,   { TextColor3 = Color3.fromRGB(160, 160, 180) })
-        tw(old.iconLbl,   { TextTransparency = 0.3 })
-        if old.stroke then tw(old.stroke, { Transparency = 0.55 }) end
-    end
     -- Hide old panel
     if activePanel then activePanel.Visible = false end
-    -- Show new panel
-    activePanelId = id
     local p = panelHost:FindFirstChild(id)
-    if p then
-        p.Visible = true
-        activePanel = p
+    if p then p.Visible = true; activePanel = p end
+    -- Deselect old, select new
+    if activePanelId and navBtns[activePanelId] then
+        local old     = navBtns[activePanelId]
+        local oldAcc  = old.accent
+        tw(old.pill,      { BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.88 })
+        tw(old.accentBar, { BackgroundTransparency = 1 })
+        tw(old.textLbl,   { TextColor3 = Color3.fromRGB(160, 160, 180) })
+        tw(old.iconLbl,   { TextTransparency = 0.3 })
+        if old.stroke then tw(old.stroke, { Transparency = 0.55 }) end
     end
-    -- Select new pill
+    activePanelId = id
     if navBtns[id] then
         local cur    = navBtns[id]
         local accent = cur.accent
@@ -397,6 +367,7 @@ local function makePanel(name)
     f.ScrollBarImageColor3  = Color3.fromRGB(80, 80, 120)
     f.CanvasSize            = UDim2.new(0, 0, 0, 0)
     f.Visible               = false
+    -- NOTE: Active NOT set to false here — buttons inside panels must be clickable
     f.ZIndex                = 3
     f.Parent                = panelHost
     panels[name] = f
@@ -1248,4 +1219,14 @@ Remotes:WaitForChild("DuelCancel").OnClientEvent:Connect(function(data)
         or "❌ Duel cancelled."
 end)
 
--- Space key + all click/touch input handled by UIS.InputBegan at top of file
+-- ── Space key click ──────────────────────────────────────────────────────
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.Space then
+        ClickRemote:FireServer()
+        spawnTapRipple(Vector2.new(0.5, 0.65))  -- visual feedback at screen centre
+    end
+end)
+
+-- ── Default panel on load ─────────────────────────────────────────────────
+-- No default panel opened on load — game world stays visible until player taps a pill
