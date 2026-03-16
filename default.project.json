@@ -46,21 +46,15 @@
         },
         "ReplicatedStorage": {
             "$className": "ReplicatedStorage",
-            "Upgrades": {
-                "$path": "src/shared/Upgrades.lua"
-            },
-            "Pets": {
-                "$path": "src/shared/Pets.lua"
-            },
-            "Eggs": {
-                "$path": "src/shared/Eggs.lua"
-            },
-            "Ranks": {
-                "$path": "src/shared/Ranks.lua"
-            },
-            "Events": {
-                "$path": "src/shared/Events.lua"
-            }
+            "Upgrades":     { "$path": "src/shared/Upgrades.lua"     },
+            "Pets":         { "$path": "src/shared/Pets.lua"         },
+            "Eggs":         { "$path": "src/shared/Eggs.lua"         },
+            "Ranks":        { "$path": "src/shared/Ranks.lua"        },
+            "Events":       { "$path": "src/shared/Events.lua"       },
+            "Quests":       { "$path": "src/shared/Quests.lua"       },
+            "Achievements": { "$path": "src/shared/Achievements.lua" },
+            "DailyRewards": { "$path": "src/shared/DailyRewards.lua" },
+            "SpinPrizes":   { "$path": "src/shared/SpinPrizes.lua"   }
         }
     }
 }

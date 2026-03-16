@@ -1,6 +1,8 @@
--- UIManager.client.lua  (V3)
+-- UIManager.client.lua  (V4)
 -- Full GUI: stats, upgrades, egg shop + hatch cinematic, duel system,
--- leaderboard, god mode flash, event/announce banners, co-op indicator
+-- leaderboard, god mode flash, event/announce banners, co-op indicator,
+-- spin wheel, daily rewards, quests, achievements, free rewards, evolution,
+-- ascension button, auto-roll toggle, offline earnings popup
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,703 +15,638 @@ local Remotes   = ReplicatedStorage:WaitForChild("Remotes")
 local Upgrades  = require(ReplicatedStorage:WaitForChild("Upgrades"))
 local Pets      = require(ReplicatedStorage:WaitForChild("Pets"))
 local Eggs      = require(ReplicatedStorage:WaitForChild("Eggs"))
+local Quests      = require(ReplicatedStorage:WaitForChild("Quests"))
+local Achievements = require(ReplicatedStorage:WaitForChild("Achievements"))
+local DailyRewards = require(ReplicatedStorage:WaitForChild("DailyRewards"))
+local SpinPrizes   = require(ReplicatedStorage:WaitForChild("SpinPrizes"))
 
 -- ── Util ──────────────────────────────────────────────────────────────────
 local function corner(p, r)
-    local c = Instance.new("UICorner") ; c.CornerRadius = UDim.new(0,r or 10) ; c.Parent=p
+    local c=Instance.new("UICorner"); c.CornerRadius=UDim.new(0,r or 10); c.Parent=p
 end
 local function lbl(props, parent)
-    local l = Instance.new("TextLabel") ; l.BackgroundTransparency=1
-    for k,v in pairs(props) do l[k]=v end ; l.Parent=parent ; return l
+    local l=Instance.new("TextLabel"); l.BackgroundTransparency=1
+    for k,v in pairs(props) do l[k]=v end; l.Parent=parent; return l
 end
 local function btn(props, parent)
-    local b = Instance.new("TextButton") ; b.BorderSizePixel=0
-    for k,v in pairs(props) do b[k]=v end ; b.Parent=parent ; return b
+    local b=Instance.new("TextButton"); b.BorderSizePixel=0
+    for k,v in pairs(props) do b[k]=v end; b.Parent=parent; return b
 end
 
 -- ── Constants ─────────────────────────────────────────────────────────────
-local RARITY_COLORS = {
+local RARITY_COLORS={
     Common    = Color3.fromRGB(190,190,190),
     Rare      = Color3.fromRGB(80,140,255),
     Legendary = Color3.fromRGB(255,170,0),
 }
-local EGG_COLORS = {}
-for _, e in ipairs(Eggs) do EGG_COLORS[e.id] = e.color end
+local EGG_COLORS={}
+for _, e in ipairs(Eggs) do EGG_COLORS[e.id]=e.color end
+
+-- Pet lookup
+local petById={}
+for _, p in ipairs(Pets) do petById[p.id]=p end
 
 -- ── Root ScreenGui ─────────────────────────────────────────────────────────
-local screen = Instance.new("ScreenGui")
-screen.Name="SigmaGui" ; screen.ResetOnSpawn=false
-screen.IgnoreGuiInset=true ; screen.Parent=playerGui
+local screen=Instance.new("ScreenGui")
+screen.Name="SigmaGui"; screen.ResetOnSpawn=false
+screen.IgnoreGuiInset=true; screen.Parent=playerGui
 
 -- ── TOP RIGHT: Rizz counter ───────────────────────────────────────────────
-local rizzFrame = Instance.new("Frame")
-rizzFrame.Size=UDim2.new(0,180,0,46) ; rizzFrame.Position=UDim2.new(1,-190,0,12)
-rizzFrame.BackgroundColor3=Color3.fromRGB(55,0,90) ; rizzFrame.BackgroundTransparency=0.05
-rizzFrame.BorderSizePixel=0 ; rizzFrame.Parent=screen
-corner(rizzFrame)
+local rizzFrame=Instance.new("Frame")
+rizzFrame.Size=UDim2.new(0,180,0,46); rizzFrame.Position=UDim2.new(1,-190,0,12)
+rizzFrame.BackgroundColor3=Color3.fromRGB(55,0,90); rizzFrame.BackgroundTransparency=0.05
+rizzFrame.BorderSizePixel=0; rizzFrame.Parent=screen; corner(rizzFrame)
 Instance.new("UIStroke",rizzFrame).Color=Color3.fromRGB(140,60,220)
+local rizzLabel=lbl({Name="RizzLabel",Size=UDim2.new(1,-8,1,0),Position=UDim2.new(0,4,0,0),
+    Text="💎  0 Rizz",TextColor3=Color3.fromRGB(230,180,255),TextScaled=true,
+    Font=Enum.Font.GothamBold},rizzFrame)
 
-local rizzLabel = lbl({Name="RizzLabel",Size=UDim2.new(1,-8,1,0),Position=UDim2.new(0,4,0,0),
-    Text="💎  0 Rizz",TextColor3=Color3.fromRGB(230,180,255),TextScaled=true,Font=Enum.Font.GothamBold},rizzFrame)
-
--- ── TOP CENTER: Sigma + pet income ────────────────────────────────────────
-local sigmaFrame = Instance.new("Frame")
-sigmaFrame.Size=UDim2.new(0,320,0,76) ; sigmaFrame.Position=UDim2.new(0.5,-160,0,12)
-sigmaFrame.BackgroundColor3=Color3.fromRGB(12,12,12) ; sigmaFrame.BackgroundTransparency=0.15
-sigmaFrame.BorderSizePixel=0 ; sigmaFrame.Parent=screen
-corner(sigmaFrame)
-
-local sigmaLabel = lbl({Name="SigmaLabel",Size=UDim2.new(1,0,0.6,0),
+-- ── TOP CENTER: Sigma + pet income ───────────────────────────────────────
+local sigmaFrame=Instance.new("Frame")
+sigmaFrame.Size=UDim2.new(0,320,0,76); sigmaFrame.Position=UDim2.new(0.5,-160,0,12)
+sigmaFrame.BackgroundColor3=Color3.fromRGB(12,12,12); sigmaFrame.BackgroundTransparency=0.15
+sigmaFrame.BorderSizePixel=0; sigmaFrame.Parent=screen; corner(sigmaFrame)
+local sigmaLabel=lbl({Name="SigmaLabel",Size=UDim2.new(1,0,0.45,0),
     Text="😎  0 σ",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},sigmaFrame)
-
-local petIncomeLabel = lbl({Name="PetLabel",Size=UDim2.new(1,0,0.4,0),Position=UDim2.new(0,0,0.6,0),
+local petIncomeLabel=lbl({Name="PetLabel",Size=UDim2.new(1,0,0.28,0),Position=UDim2.new(0,0,0.45,0),
     Text="🐾 0 σ/sec",TextColor3=Color3.fromRGB(110,230,110),TextScaled=true,Font=Enum.Font.Gotham},sigmaFrame)
+local multLabel=lbl({Name="MultLabel",Size=UDim2.new(1,0,0.27,0),Position=UDim2.new(0,0,0.73,0),
+    Text="x1 per click",TextColor3=Color3.fromRGB(200,200,255),TextScaled=true,Font=Enum.Font.Gotham},sigmaFrame)
+
+-- Spin boost indicator
+local spinBoostLabel=lbl({Name="SpinBoostLabel",Size=UDim2.new(0,180,0,22),
+    Position=UDim2.new(1,-190,0,62),
+    Text="",TextColor3=Color3.fromRGB(255,100,255),TextScaled=true,
+    Font=Enum.Font.GothamBold,Visible=false},screen)
 
 -- ── Rank + progress ───────────────────────────────────────────────────────
-local rankFrame = Instance.new("Frame")
-rankFrame.Size=UDim2.new(0,320,0,42) ; rankFrame.Position=UDim2.new(0.5,-160,0,92)
-rankFrame.BackgroundColor3=Color3.fromRGB(12,12,12) ; rankFrame.BackgroundTransparency=0.15
-rankFrame.BorderSizePixel=0 ; rankFrame.Parent=screen
-corner(rankFrame)
-
-local rankLabel = lbl({Name="RankLabel",Size=UDim2.new(1,0,0.6,0),
+local rankFrame=Instance.new("Frame")
+rankFrame.Size=UDim2.new(0,320,0,42); rankFrame.Position=UDim2.new(0.5,-160,0,92)
+rankFrame.BackgroundColor3=Color3.fromRGB(12,12,12); rankFrame.BackgroundTransparency=0.15
+rankFrame.BorderSizePixel=0; rankFrame.Parent=screen; corner(rankFrame)
+local rankLabel=lbl({Name="RankLabel",Size=UDim2.new(1,0,0.6,0),
     Text="🤡  NPC",TextColor3=Color3.fromRGB(220,220,220),TextScaled=true,Font=Enum.Font.GothamBold},rankFrame)
-
-local progBg = Instance.new("Frame")
-progBg.Size=UDim2.new(1,-16,0,6) ; progBg.Position=UDim2.new(0,8,1,-10)
-progBg.BackgroundColor3=Color3.fromRGB(50,50,50) ; progBg.BorderSizePixel=0 ; progBg.Parent=rankFrame
+local progBg=Instance.new("Frame")
+progBg.Size=UDim2.new(1,-16,0,6); progBg.Position=UDim2.new(0,8,1,-10)
+progBg.BackgroundColor3=Color3.fromRGB(50,50,50); progBg.BorderSizePixel=0; progBg.Parent=rankFrame
 corner(progBg,3)
+local progBar=Instance.new("Frame")
+progBar.Size=UDim2.new(0,0,1,0); progBar.BackgroundColor3=Color3.fromRGB(80,200,255)
+progBar.BorderSizePixel=0; progBar.Parent=progBg; corner(progBar,3)
 
-local progBar = Instance.new("Frame")
-progBar.Name="ProgressBar" ; progBar.Size=UDim2.new(0,0,1,0)
-progBar.BackgroundColor3=Color3.fromRGB(255,215,0) ; progBar.BorderSizePixel=0 ; progBar.Parent=progBg
-corner(progBar,3)
+-- ── CLICK BUTTON ──────────────────────────────────────────────────────────
+local clickBtn=btn({Name="ClickBtn",Size=UDim2.new(0,200,0,200),
+    AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.72,0),
+    BackgroundColor3=Color3.fromRGB(20,20,20),Text="😎",TextScaled=true,
+    Font=Enum.Font.GothamBold,ZIndex=2},screen)
+corner(clickBtn,100)
+local clickStroke=Instance.new("UIStroke",clickBtn)
+clickStroke.Color=Color3.fromRGB(255,215,0); clickStroke.Thickness=3
 
--- ── Multiplier + co-op label ──────────────────────────────────────────────
-local multLabel = lbl({Name="MultLabel",Size=UDim2.new(0,200,0,22),Position=UDim2.new(0.5,-100,1,-334),
-    Text="x1 per click",TextColor3=Color3.fromRGB(180,180,180),TextScaled=true,Font=Enum.Font.Gotham},screen)
-
-local coopLabel = lbl({Name="CoopLabel",Size=UDim2.new(0,200,0,20),Position=UDim2.new(0.5,-100,1,-314),
-    Text="",TextColor3=Color3.fromRGB(100,255,200),TextScaled=true,Font=Enum.Font.Gotham,Visible=false},screen)
-
--- ── Combo bar ─────────────────────────────────────────────────────────────
-local comboBar = Instance.new("Frame")
-comboBar.Name="ComboBar" ; comboBar.Size=UDim2.new(0,200,0,22)
-comboBar.Position=UDim2.new(0.5,-100,1,-306) ; comboBar.BackgroundColor3=Color3.fromRGB(30,30,30)
-comboBar.BorderSizePixel=0 ; comboBar.Parent=screen
-corner(comboBar,4)
-
-local comboFill = Instance.new("Frame")
-comboFill.Name="ComboFill" ; comboFill.Size=UDim2.new(0,0,1,0)
-comboFill.BackgroundColor3=Color3.fromRGB(255,215,0) ; comboFill.BorderSizePixel=0 ; comboFill.Parent=comboBar
-corner(comboFill,4)
-
-lbl({Name="ComboLabel",Size=UDim2.new(1,0,1,0),Text="0 / 5 for COMBO",
-    TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=2},comboBar)
-
--- ── Click button ──────────────────────────────────────────────────────────
-local clickButton = Instance.new("TextButton")
-clickButton.Name="ClickButton" ; clickButton.Size=UDim2.new(0,200,0,200)
-clickButton.Position=UDim2.new(0.5,-100,1,-284) ; clickButton.BackgroundColor3=Color3.fromRGB(255,215,0)
-clickButton.BorderSizePixel=0 ; clickButton.Text="😎\nCLICK"
-clickButton.TextColor3=Color3.fromRGB(0,0,0) ; clickButton.TextScaled=true
-clickButton.Font=Enum.Font.GothamBold ; clickButton.Parent=screen
-corner(clickButton,100)
-
--- ── Prestige button (hidden until threshold) ─────────────────────────────
-local prestigeBtn = btn({Name="PrestigeButton",Size=UDim2.new(0,160,0,40),
-    AnchorPoint=Vector2.new(0.5,0),Position=UDim2.new(0.5,0,1,-100),
-    BackgroundColor3=Color3.fromRGB(80,0,120),Text="🌌 PRESTIGE",
-    TextColor3=Color3.fromRGB(200,150,255),TextScaled=true,Font=Enum.Font.GothamBold,
-    Visible=false},screen)
+-- ── PRESTIGE BUTTON ───────────────────────────────────────────────────────
+local prestigeBtn=btn({Name="PrestigeBtn",Size=UDim2.new(0,240,0,48),
+    AnchorPoint=Vector2.new(0.5,0),Position=UDim2.new(0.5,0,0,152),
+    BackgroundColor3=Color3.fromRGB(120,0,180),Visible=false,
+    Text="🌌 PRESTIGE #1",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+    Font=Enum.Font.GothamBold},screen)
 corner(prestigeBtn)
-prestigeBtn.MouseButton1Click:Connect(function()
-    Remotes:WaitForChild("Prestige"):FireServer()
-end)
 
--- ── Bottom nav row ────────────────────────────────────────────────────────
-local NAV_Y = UDim2.new(1,-52)
-local function navBtn(x,text,bg,tc)
-    local b = btn({Size=UDim2.new(0,110,0,42),Position=UDim2.new(0,x,1,-52),
-        BackgroundColor3=bg,Text=text,TextColor3=tc,TextScaled=true,Font=Enum.Font.GothamBold},screen)
-    corner(b) ; return b
-end
-local petNavBtn  = navBtn(5,   "🐾 Pets",     Color3.fromRGB(0,75,35),   Color3.fromRGB(150,255,150))
-local duelNavBtn = navBtn(122, "⚔️ Duel",     Color3.fromRGB(90,0,0),    Color3.fromRGB(255,150,150))
-local boardBtn   = navBtn(239, "🏆 Board",    Color3.fromRGB(60,45,0),    Color3.fromRGB(255,215,0))
-local shopBtn    = navBtn(356, "⬆️ Upgrades", Color3.fromRGB(30,30,30),   Color3.fromRGB(255,255,255))
+-- ── ASCENSION BUTTON ──────────────────────────────────────────────────────
+local ascendBtn=btn({Name="AscendBtn",Size=UDim2.new(0,240,0,48),
+    AnchorPoint=Vector2.new(0.5,0),Position=UDim2.new(0.5,0,0,206),
+    BackgroundColor3=Color3.fromRGB(180,100,0),Visible=false,
+    Text="✨ ASCEND (P5 TRUE RESET)",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+    Font=Enum.Font.GothamBold},screen)
+corner(ascendBtn)
 
--- ── Upgrade shop panel ────────────────────────────────────────────────────
-local shopFrame = Instance.new("Frame")
-shopFrame.Name="ShopFrame" ; shopFrame.Size=UDim2.new(0,300,0,420)
-shopFrame.Position=UDim2.new(1,-310,1,-478) ; shopFrame.BackgroundColor3=Color3.fromRGB(16,16,16)
-shopFrame.BackgroundTransparency=0.05 ; shopFrame.BorderSizePixel=0
-shopFrame.Visible=false ; shopFrame.Parent=screen
-corner(shopFrame,14)
-lbl({Size=UDim2.new(1,0,0,42),Text="⬆️  UPGRADES",TextColor3=Color3.fromRGB(255,215,0),
-    TextScaled=true,Font=Enum.Font.GothamBold},shopFrame)
+-- ── Co-op label ───────────────────────────────────────────────────────────
+local coopLabel=lbl({Name="CoopLabel",Size=UDim2.new(0,240,0,32),
+    Position=UDim2.new(0,10,0,200),Text="",TextColor3=Color3.fromRGB(80,255,160),
+    TextScaled=true,Font=Enum.Font.GothamBold,Visible=false},screen)
 
-local upgradeScroll = Instance.new("ScrollingFrame")
-upgradeScroll.Name="UpgradeList" ; upgradeScroll.Size=UDim2.new(1,-12,1,-50)
-upgradeScroll.Position=UDim2.new(0,6,0,46) ; upgradeScroll.BackgroundTransparency=1
-upgradeScroll.BorderSizePixel=0 ; upgradeScroll.ScrollBarThickness=4
-upgradeScroll.CanvasSize=UDim2.new(0,0,0,#Upgrades*72) ; upgradeScroll.Parent=shopFrame
-local ul=Instance.new("UIListLayout") ; ul.Padding=UDim.new(0,5) ; ul.Parent=upgradeScroll
+-- ── God Mode Flash ────────────────────────────────────────────────────────
+local godFlash=Instance.new("Frame")
+godFlash.Size=UDim2.new(1,0,1,0); godFlash.BackgroundColor3=Color3.fromRGB(255,215,0)
+godFlash.BackgroundTransparency=1; godFlash.ZIndex=20; godFlash.Parent=screen
+local godLabel=lbl({Name="GodLabel",Size=UDim2.new(1,0,0.12,0),Position=UDim2.new(0,0,0.44,0),
+    Text="⚡ SIGMA GOD MODE ⚡",TextColor3=Color3.fromRGB(255,80,0),TextScaled=true,
+    Font=Enum.Font.GothamBold,Visible=false,ZIndex=21},screen)
 
-local BuyUpgrade=Remotes:WaitForChild("BuyUpgrade")
-local upgradeButtons={}
-for _,u in ipairs(Upgrades) do
-    local b=btn({Name="U_"..u.id,Size=UDim2.new(1,0,0,66),BackgroundColor3=Color3.fromRGB(32,32,32),
-        TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.Gotham},upgradeScroll)
-    corner(b,8)
-    local fx=u.effect=="click_multiplier" and (u.value.."x click") or ("+"..u.value.." σ/sec")
-    b.Text=u.name.."\n"..fx.."  |  "..u.cost.." σ"
-    upgradeButtons[u.id]=b
-    b.MouseButton1Click:Connect(function() BuyUpgrade:FireServer(u.id) end)
-end
-shopBtn.MouseButton1Click:Connect(function()
-    shopFrame.Visible=not shopFrame.Visible
-    if shopFrame.Visible then petPanel.Visible=false ; duelPanel.Visible=false ; boardPanel.Visible=false end
-end)
+-- ── Event banner ─────────────────────────────────────────────────────────
+local eventBanner=lbl({Name="EventBanner",Size=UDim2.new(1,0,0,52),
+    Position=UDim2.new(0,0,0,0),Text="",BackgroundTransparency=0.3,
+    BackgroundColor3=Color3.fromRGB(20,0,60),TextColor3=Color3.fromRGB(255,215,0),
+    TextScaled=true,Font=Enum.Font.GothamBold,Visible=false},screen)
 
--- ── Pet shop panel ────────────────────────────────────────────────────────
-local petPanel = Instance.new("Frame")
-petPanel.Name="PetPanel" ; petPanel.Size=UDim2.new(0,330,0,490)
-petPanel.Position=UDim2.new(0,5,1,-548) ; petPanel.BackgroundColor3=Color3.fromRGB(8,22,12)
-petPanel.BackgroundTransparency=0.05 ; petPanel.BorderSizePixel=0
-petPanel.Visible=false ; petPanel.Parent=screen
-corner(petPanel,14)
-lbl({Size=UDim2.new(1,0,0,42),Text="🐾  PETS",
-    TextColor3=Color3.fromRGB(150,255,150),TextScaled=true,Font=Enum.Font.GothamBold},petPanel)
-
-local petBuyTab=btn({Size=UDim2.new(0.5,0,0,32),Position=UDim2.new(0,0,0,44),
-    BackgroundColor3=Color3.fromRGB(0,100,50),Text="🥚 Hatch Eggs",
-    TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},petPanel)
-local petMyTab=btn({Size=UDim2.new(0.5,0,0,32),Position=UDim2.new(0.5,0,0,44),
-    BackgroundColor3=Color3.fromRGB(30,30,30),Text="🎒 My Pets",
-    TextColor3=Color3.fromRGB(180,180,180),TextScaled=true,Font=Enum.Font.GothamBold},petPanel)
-
--- Egg buy scroll
-local eggScroll=Instance.new("ScrollingFrame")
-eggScroll.Size=UDim2.new(1,-12,1,-80) ; eggScroll.Position=UDim2.new(0,6,0,80)
-eggScroll.BackgroundTransparency=1 ; eggScroll.BorderSizePixel=0
-eggScroll.ScrollBarThickness=4 ; eggScroll.CanvasSize=UDim2.new(0,0,0,#Eggs*150)
-eggScroll.Visible=true ; eggScroll.Parent=petPanel
-local eggUL=Instance.new("UIListLayout") ; eggUL.Padding=UDim.new(0,8) ; eggUL.Parent=eggScroll
-
--- My pets scroll
-local myPetsScroll=Instance.new("ScrollingFrame")
-myPetsScroll.Size=UDim2.new(1,-12,1,-80) ; myPetsScroll.Position=UDim2.new(0,6,0,80)
-myPetsScroll.BackgroundTransparency=1 ; myPetsScroll.BorderSizePixel=0
-myPetsScroll.ScrollBarThickness=4 ; myPetsScroll.CanvasSize=UDim2.new(0,0,0,400)
-myPetsScroll.Visible=false ; myPetsScroll.Parent=petPanel
-local myUL=Instance.new("UIListLayout") ; myUL.Padding=UDim.new(0,5) ; myUL.Parent=myPetsScroll
-
-local HatchEgg   = Remotes:WaitForChild("HatchEgg")
-local EquipPet   = Remotes:WaitForChild("EquipPet")
-local ExchangePet= Remotes:WaitForChild("ExchangePet")
-
-petBuyTab.MouseButton1Click:Connect(function()
-    eggScroll.Visible=true ; myPetsScroll.Visible=false
-    petBuyTab.BackgroundColor3=Color3.fromRGB(0,100,50) ; petMyTab.BackgroundColor3=Color3.fromRGB(30,30,30)
-end)
-petMyTab.MouseButton1Click:Connect(function()
-    eggScroll.Visible=false ; myPetsScroll.Visible=true
-    petMyTab.BackgroundColor3=Color3.fromRGB(0,100,50) ; petBuyTab.BackgroundColor3=Color3.fromRGB(30,30,30)
-end)
-petNavBtn.MouseButton1Click:Connect(function()
-    petPanel.Visible=not petPanel.Visible
-    if petPanel.Visible then shopFrame.Visible=false ; duelPanel.Visible=false ; boardPanel.Visible=false end
-end)
-
--- Egg cards (static — costs/rarities never change)
-for _,egg in ipairs(Eggs) do
-    local card=Instance.new("Frame")
-    card.Size=UDim2.new(1,0,0,140) ; card.BackgroundColor3=Color3.fromRGB(18,35,20)
-    card.BorderSizePixel=0 ; card.Parent=eggScroll
-    corner(card,10)
-    -- Egg emoji
-    lbl({Size=UDim2.new(0,80,1,-10),Position=UDim2.new(0,5,0,5),
-        Text=egg.emoji,TextColor3=egg.color,TextScaled=true,Font=Enum.Font.GothamBold},card)
-    -- Name + cost
-    lbl({Size=UDim2.new(1,-100,0,40),Position=UDim2.new(0,90,0,8),
-        Text=egg.name.."  💎 "..egg.cost.." Rizz",
-        TextColor3=egg.color,TextScaled=true,Font=Enum.Font.GothamBold,TextXAlignment=Enum.TextXAlignment.Left},card)
-    -- Rarity preview
-    local w=egg.weights
-    lbl({Size=UDim2.new(1,-100,0,28),Position=UDim2.new(0,90,0,48),
-        Text="🌟 Leg "..w.Legendary.."% | 💙 Rare "..w.Rare.."% | 🥚 Com "..w.Common.."%",
-        TextColor3=Color3.fromRGB(180,180,180),TextScaled=true,Font=Enum.Font.Gotham,TextXAlignment=Enum.TextXAlignment.Left},card)
-    -- Hatch button
-    local hatchBtn=btn({Size=UDim2.new(1,-100,0,38),Position=UDim2.new(0,90,1,-48),
-        BackgroundColor3=egg.color,Text="🥚 Hatch!",
-        TextColor3=Color3.fromRGB(0,0,0),TextScaled=true,Font=Enum.Font.GothamBold},card)
-    corner(hatchBtn,8)
-    local eId=egg.id
-    hatchBtn.MouseButton1Click:Connect(function() HatchEgg:FireServer(eId) end)
+-- ── Announce banner ───────────────────────────────────────────────────────
+local annQueue={}; local annRunning=false
+local annBanner=lbl({Name="AnnBanner",Size=UDim2.new(0.6,0,0,44),
+    AnchorPoint=Vector2.new(0.5,0),Position=UDim2.new(0.5,0,0,4),
+    BackgroundColor3=Color3.fromRGB(30,0,60),BackgroundTransparency=0.1,
+    TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold,
+    Visible=false,ZIndex=15},screen); corner(annBanner)
+local function showAnn(msg)
+    table.insert(annQueue,msg)
+    if annRunning then return end
+    annRunning=true
+    task.spawn(function()
+        while #annQueue>0 do
+            local m=table.remove(annQueue,1)
+            annBanner.Text=m; annBanner.Visible=true
+            task.wait(3); annBanner.Visible=false; task.wait(0.2)
+        end
+        annRunning=false
+    end)
 end
 
--- My pets rebuild (called on every UpdateUI)
-local function rebuildMyPets(ownedPets, equippedPets)
-    for _,c in ipairs(myPetsScroll:GetChildren()) do
-        if c:IsA("Frame") then c:Destroy() end
+-- ── NAV BAR ───────────────────────────────────────────────────────────────
+local NAV_TABS={"Upgrades","Pets","Shop","Duels","LB","Spin","Daily","Quests","Achieve","Free"}
+local NAV_COLORS={
+    Upgrades=Color3.fromRGB(40,40,80),Pets=Color3.fromRGB(20,60,20),
+    Shop=Color3.fromRGB(80,40,0),Duels=Color3.fromRGB(80,0,0),
+    LB=Color3.fromRGB(60,60,0),Spin=Color3.fromRGB(80,0,80),
+    Daily=Color3.fromRGB(0,60,80),Quests=Color3.fromRGB(0,80,40),
+    Achieve=Color3.fromRGB(60,40,0),Free=Color3.fromRGB(0,60,60),
+}
+local navBar=Instance.new("ScrollingFrame")
+navBar.Size=UDim2.new(1,0,0,52); navBar.Position=UDim2.new(0,0,1,-52)
+navBar.BackgroundColor3=Color3.fromRGB(10,10,10); navBar.BorderSizePixel=0
+navBar.ScrollBarThickness=0; navBar.CanvasSize=UDim2.new(0,#NAV_TABS*80,0,0)
+navBar.ScrollingDirection=Enum.ScrollingDirection.X; navBar.Parent=screen
+local navLayout=Instance.new("UIListLayout"); navLayout.FillDirection=Enum.FillDirection.Horizontal
+navLayout.SortOrder=Enum.SortOrder.LayoutOrder; navLayout.Parent=navBar
+
+-- ── PANELS container ──────────────────────────────────────────────────────
+local panelHost=Instance.new("Frame")
+panelHost.Size=UDim2.new(1,0,1,-52); panelHost.Position=UDim2.new(0,0,0,0)
+panelHost.BackgroundTransparency=1; panelHost.ClipsDescendants=true; panelHost.Parent=screen
+
+local activePanel=nil
+local navBtns={}
+
+local function showPanel(name)
+    if activePanel then activePanel.Visible=false end
+    local p=panelHost:FindFirstChild(name)
+    if p then p.Visible=true ; activePanel=p end
+    -- Highlight active nav
+    for n, b in pairs(navBtns) do
+        b.BackgroundColor3 = n==name and Color3.fromRGB(80,80,200) or (NAV_COLORS[n] or Color3.fromRGB(30,30,30))
     end
-    local equippedSet={}
-    for _,id in ipairs(equippedPets or {}) do equippedSet[id]=true end
-    local rows=0
-    for _,pet in ipairs(Pets) do
+end
+
+local panels={}
+local function makePanel(name)
+    local f=Instance.new("ScrollingFrame")
+    f.Name=name; f.Size=UDim2.new(1,0,1,0); f.Position=UDim2.new(0,0,0,0)
+    f.BackgroundColor3=Color3.fromRGB(16,16,24); f.BorderSizePixel=0
+    f.ScrollBarThickness=6; f.CanvasSize=UDim2.new(0,0,0,0)
+    f.Visible=false; f.Parent=panelHost
+    panels[name]=f; return f
+end
+
+for i, name in ipairs(NAV_TABS) do
+    local b=btn({Name="Nav_"..name, Size=UDim2.new(0,78,1,0),LayoutOrder=i,
+        BackgroundColor3=NAV_COLORS[name] or Color3.fromRGB(30,30,30),
+        Text=name,TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+        Font=Enum.Font.GothamBold},navBar)
+    navBtns[name]=b
+    local target=name
+    b.MouseButton1Click:Connect(function() showPanel(target) end)
+end
+
+-- ── PANEL: Upgrades ───────────────────────────────────────────────────────
+local upgPanel=makePanel("Upgrades")
+upgPanel.CanvasSize=UDim2.new(0,0,0,#Upgrades*80+20)
+local upgLayout=Instance.new("UIListLayout")
+upgLayout.Padding=UDim.new(0,8); upgLayout.Parent=upgPanel
+Instance.new("UIPadding",upgPanel).PaddingTop=UDim.new(0,8)
+local upgradeButtons={}
+for _, u in ipairs(Upgrades) do
+    local b=btn({Size=UDim2.new(1,-20,0,66),
+        BackgroundColor3=Color3.fromRGB(28,28,48),
+        Text="["..u.icon.."]  "..u.name.."\n"..u.description.."   Cost: "..u.cost.."σ",
+        TextColor3=Color3.fromRGB(200,200,255),TextScaled=true,Font=Enum.Font.Gotham,
+        TextXAlignment=Enum.TextXAlignment.Left},upgPanel)
+    Instance.new("UIPadding",b).PaddingLeft=UDim.new(0,10); corner(b)
+    upgradeButtons[u.id]=b
+    local uid=u.id
+    b.MouseButton1Click:Connect(function()
+        Remotes:WaitForChild("BuyUpgrade"):FireServer(uid)
+    end)
+end
+
+-- ── PANEL: Pets ────────────────────────────────────────────────────────────
+local petPanel=makePanel("Pets")
+local petPanelLayout=Instance.new("UIListLayout")
+petPanelLayout.Padding=UDim.new(0,6); petPanelLayout.Parent=petPanel
+Instance.new("UIPadding",petPanel).PaddingTop=UDim.new(0,8)
+
+local function rebuildMyPets(ownedPets, equippedPets, evolvedPets)
+    for _, c in ipairs(petPanel:GetChildren()) do
+        if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
+    end
+    local equipped={}
+    for _, id in ipairs(equippedPets or {}) do equipped[tostring(id)]=true end
+    local evolved=evolvedPets or {}
+    for _, pet in ipairs(Pets) do
         local key=tostring(pet.id)
-        local count=(ownedPets and ownedPets[key]) or 0
-        if count>0 then
-            rows+=1
-            local row=Instance.new("Frame")
-            row.Size=UDim2.new(1,0,0,80) ; row.BackgroundColor3=equippedSet[pet.id] and Color3.fromRGB(0,70,35) or Color3.fromRGB(16,30,18)
-            row.BorderSizePixel=0 ; row.Parent=myPetsScroll
-            corner(row,8)
-            lbl({Size=UDim2.new(0,52,1,0),Text=pet.emoji,TextColor3=RARITY_COLORS[pet.rarity] or Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},row)
-            lbl({Size=UDim2.new(1,-160,0,30),Position=UDim2.new(0,56,0,4),
-                Text=pet.name.." x"..count,TextColor3=RARITY_COLORS[pet.rarity] or Color3.fromRGB(255,255,255),
-                TextScaled=true,Font=Enum.Font.GothamBold,TextXAlignment=Enum.TextXAlignment.Left},row)
-            lbl({Size=UDim2.new(1,-160,0,24),Position=UDim2.new(0,56,0,36),
-                Text="+"..pet.sigmaPerSec.." σ/sec",TextColor3=Color3.fromRGB(150,255,150),
-                TextScaled=true,Font=Enum.Font.Gotham,TextXAlignment=Enum.TextXAlignment.Left},row)
-            local equipBtn=btn({Size=UDim2.new(0,90,0,30),Position=UDim2.new(1,-98,0,8),
-                BackgroundColor3=equippedSet[pet.id] and Color3.fromRGB(0,140,70) or Color3.fromRGB(40,40,40),
-                Text=equippedSet[pet.id] and "✅ Equipped" or "Equip",
-                TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.Gotham},row)
-            corner(equipBtn,6)
-            local pid=pet.id
-            equipBtn.MouseButton1Click:Connect(function() EquipPet:FireServer(pid) end)
-            if count>1 then
-                local exchBtn=btn({Size=UDim2.new(0,90,0,28),Position=UDim2.new(1,-98,0,44),
-                    BackgroundColor3=Color3.fromRGB(60,0,80),
-                    Text="♻️ Exchange",TextColor3=Color3.fromRGB(200,150,255),
-                    TextScaled=true,Font=Enum.Font.Gotham},row)
-                corner(exchBtn,6)
-                exchBtn.MouseButton1Click:Connect(function() ExchangePet:FireServer(pid) end)
-            end
+        local count=ownedPets and (ownedPets[key] or 0) or 0
+        local isEvo=evolved[key]
+        local isEquip=equipped[key]
+        local col=RARITY_COLORS[pet.rarity] or Color3.fromRGB(200,200,200)
+        local row=Instance.new("Frame")
+        row.Size=UDim2.new(1,-16,0,66); row.BackgroundColor3=col
+        row.BackgroundTransparency=0.7; row.BorderSizePixel=0; row.Parent=petPanel
+        corner(row)
+        local emo=isEvo and (pet.evolvedEmoji or "🌟") or pet.emoji
+        local name=isEvo and (pet.evolvedName or pet.name.." ✨") or pet.name
+        lbl({Size=UDim2.new(0.55,0,1,0),
+            Text=emo.."  "..name.."  x"..count,TextColor3=Color3.fromRGB(255,255,255),
+            TextScaled=true,Font=Enum.Font.Gotham,TextXAlignment=Enum.TextXAlignment.Left},row)
+        -- Equip/Unequip
+        local ebtn=btn({Size=UDim2.new(0.2,0,0.7,0),AnchorPoint=Vector2.new(1,0.5),
+            Position=UDim2.new(1,-8,0.5,0),
+            BackgroundColor3=isEquip and Color3.fromRGB(0,180,80) or Color3.fromRGB(60,60,80),
+            Text=isEquip and "📌" or "Equip",TextColor3=Color3.fromRGB(255,255,255),
+            TextScaled=true,Font=Enum.Font.GothamBold},row); corner(ebtn)
+        local pid=pet.id
+        ebtn.MouseButton1Click:Connect(function()
+            Remotes:WaitForChild("EquipPet"):FireServer(pid)
+        end)
+        -- Evolve button (requires 3 copies, not yet evolved)
+        if count >= 3 and not isEvo then
+            local evbtn=btn({Size=UDim2.new(0.21,0,0.7,0),AnchorPoint=Vector2.new(1,0.5),
+                Position=UDim2.new(0.78,0,0.5,0),
+                BackgroundColor3=Color3.fromRGB(180,80,0),
+                Text="🌟 Evolve",TextColor3=Color3.fromRGB(255,255,255),
+                TextScaled=true,Font=Enum.Font.GothamBold},row); corner(evbtn)
+            evbtn.MouseButton1Click:Connect(function()
+                Remotes:WaitForChild("EvolvePet"):FireServer(pid)
+            end)
         end
     end
-    myPetsScroll.CanvasSize=UDim2.new(0,0,0,rows*88)
+    petPanel.CanvasSize=UDim2.new(0,0,0,#Pets*74+20)
 end
 
--- ── Leaderboard panel ─────────────────────────────────────────────────────
-local boardPanel = Instance.new("Frame")
-boardPanel.Name="BoardPanel" ; boardPanel.Size=UDim2.new(0,280,0,290)
-boardPanel.Position=UDim2.new(0,239,1,-348) ; boardPanel.BackgroundColor3=Color3.fromRGB(18,14,0)
-boardPanel.BackgroundTransparency=0.05 ; boardPanel.BorderSizePixel=0
-boardPanel.Visible=false ; boardPanel.Parent=screen
-corner(boardPanel,14)
-Instance.new("UIStroke",boardPanel).Color=Color3.fromRGB(255,215,0)
+-- ── PANEL: Shop (Egg Hatching) ────────────────────────────────────────────
+local shopPanel=makePanel("Shop")
+local shopLayout=Instance.new("UIListLayout")
+shopLayout.Padding=UDim.new(0,8); shopLayout.Parent=shopPanel
+Instance.new("UIPadding",shopPanel).PaddingTop=UDim.new(0,8)
+shopPanel.CanvasSize=UDim2.new(0,0,0,#Eggs*90+20)
 
-lbl({Size=UDim2.new(1,0,0,42),Text="🏆  SIGMA LEADERBOARD",
-    TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},boardPanel)
+local autoRollActive={}   -- eggId → bool
 
+for _, egg in ipairs(Eggs) do
+    local eggRow=Instance.new("Frame")
+    eggRow.Size=UDim2.new(1,-16,0,80); eggRow.BackgroundColor3=egg.color
+    eggRow.BackgroundTransparency=0.6; eggRow.BorderSizePixel=0; eggRow.Parent=shopPanel
+    corner(eggRow); local eid=egg.id
+    lbl({Size=UDim2.new(0.5,0,1,0),Position=UDim2.new(0,8,0,0),
+        Text=egg.emoji.."  "..egg.name.."\nCost: "..egg.cost.."💎",
+        TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,
+        TextXAlignment=Enum.TextXAlignment.Left},eggRow)
+    -- Hatch button
+    local hbtn=btn({Size=UDim2.new(0.2,0,0.6,0),AnchorPoint=Vector2.new(1,0.5),
+        Position=UDim2.new(1,-8,0.5,0),
+        BackgroundColor3=Color3.fromRGB(60,120,200),
+        Text="🥚 Hatch",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+        Font=Enum.Font.GothamBold},eggRow); corner(hbtn)
+    hbtn.MouseButton1Click:Connect(function()
+        Remotes:WaitForChild("HatchEgg"):FireServer(eid)
+    end)
+    -- Reroll button
+    local rbtn=btn({Size=UDim2.new(0.2,0,0.6,0),AnchorPoint=Vector2.new(1,0.5),
+        Position=UDim2.new(0.77,0,0.5,0),
+        BackgroundColor3=Color3.fromRGB(140,80,0),
+        Text="🔄 Reroll",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+        Font=Enum.Font.GothamBold},eggRow); corner(rbtn)
+    rbtn.MouseButton1Click:Connect(function()
+        Remotes:WaitForChild("RerollEgg"):FireServer(eid)
+    end)
+    -- Auto-roll toggle
+    local arbtn=btn({Size=UDim2.new(0.2,0,0.6,0),AnchorPoint=Vector2.new(1,0.5),
+        Position=UDim2.new(0.53,0,0.5,0),
+        BackgroundColor3=Color3.fromRGB(40,80,40),
+        Text="▶ Auto",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+        Font=Enum.Font.GothamBold},eggRow); corner(arbtn)
+    arbtn.MouseButton1Click:Connect(function()
+        Remotes:WaitForChild("AutoRollToggle"):FireServer(eid)
+    end)
+    -- Store ref for status updates
+    eggRow:SetAttribute("EggId", eid)
+    eggRow:SetAttribute("AutoBtnRef", arbtn.Name)
+end
+
+-- ── PANEL: Duels ────────────────────────────────────────────────────────────
+local duelPanel=makePanel("Duels")
+duelPanel.CanvasSize=UDim2.new(0,0,0,420)
+local dpLayout=Instance.new("UIListLayout")
+dpLayout.Padding=UDim.new(0,8); dpLayout.Parent=duelPanel
+Instance.new("UIPadding",duelPanel).PaddingTop=UDim.new(0,10)
+lbl({Size=UDim2.new(1,-16,0,34),Text="⚔️  Sigma Duels",
+    TextColor3=Color3.fromRGB(255,80,80),TextScaled=true,Font=Enum.Font.GothamBold},duelPanel)
+local challengeInput=Instance.new("TextBox")
+challengeInput.Size=UDim2.new(1,-16,0,40); challengeInput.PlaceholderText="Enter player name…"
+challengeInput.BackgroundColor3=Color3.fromRGB(30,30,30); challengeInput.TextColor3=Color3.fromRGB(255,255,255)
+challengeInput.TextScaled=true; challengeInput.Font=Enum.Font.Gotham; challengeInput.Parent=duelPanel; corner(challengeInput)
+local challengeBtn=btn({Size=UDim2.new(1,-16,0,44),BackgroundColor3=Color3.fromRGB(180,20,20),
+    Text="⚔️ Challenge",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},duelPanel)
+corner(challengeBtn)
+challengeBtn.MouseButton1Click:Connect(function()
+    local name=challengeInput.Text ; challengeInput.Text=""
+    if name~="" then Remotes:WaitForChild("DuelChallenge"):FireServer(name) end
+end)
+local duelStatus=lbl({Size=UDim2.new(1,-16,0,60),Text="",
+    TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,TextWrapped=true,Font=Enum.Font.Gotham},duelPanel)
+local duelClickBtn=btn({Size=UDim2.new(1,-16,0,80),BackgroundColor3=Color3.fromRGB(200,100,0),
+    Text="👊 CLICK!",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,Visible=false},duelPanel)
+corner(duelClickBtn)
+duelClickBtn.MouseButton1Click:Connect(function()
+    Remotes:WaitForChild("DuelClick"):FireServer()
+end)
+
+-- ── PANEL: Leaderboard ────────────────────────────────────────────────────
+local lbPanel=makePanel("LB")
+lbPanel.CanvasSize=UDim2.new(0,0,0,340)
+local lbLayout=Instance.new("UIListLayout"); lbLayout.Padding=UDim.new(0,6); lbLayout.Parent=lbPanel
+Instance.new("UIPadding",lbPanel).PaddingTop=UDim.new(0,8)
+lbl({Size=UDim2.new(1,-16,0,36),Text="🏆  Leaderboard",
+    TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},lbPanel)
 local boardRows={}
 for i=1,5 do
-    local r=lbl({Size=UDim2.new(1,-16,0,42),Position=UDim2.new(0,8,0,42+i*46),
-        Text="",TextColor3=Color3.fromRGB(220,220,220),TextScaled=true,
-        Font=Enum.Font.Gotham,TextXAlignment=Enum.TextXAlignment.Left},boardPanel)
-    r.BackgroundColor3=Color3.fromRGB(28,24,0) ; r.BackgroundTransparency=0.4
-    boardRows[i]=r
+    local r=lbl({Size=UDim2.new(1,-16,0,50),Text="",
+        BackgroundColor3=Color3.fromRGB(30,30,30),BackgroundTransparency=0.3,
+        TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.Gotham},lbPanel)
+    corner(r); table.insert(boardRows,r)
 end
-boardBtn.MouseButton1Click:Connect(function()
-    boardPanel.Visible=not boardPanel.Visible
-    if boardPanel.Visible then shopFrame.Visible=false ; petPanel.Visible=false ; duelPanel.Visible=false end
-end)
 
--- ── Duel panel ────────────────────────────────────────────────────────────
-local duelPanel = Instance.new("Frame")
-duelPanel.Name="DuelPanel" ; duelPanel.Size=UDim2.new(0,300,0,390)
-duelPanel.Position=UDim2.new(0,122,1,-448) ; duelPanel.BackgroundColor3=Color3.fromRGB(25,5,5)
-duelPanel.BackgroundTransparency=0.05 ; duelPanel.BorderSizePixel=0
-duelPanel.Visible=false ; duelPanel.Parent=screen
-corner(duelPanel,14)
-Instance.new("UIStroke",duelPanel).Color=Color3.fromRGB(200,50,50)
+-- ── PANEL: Spin Wheel ────────────────────────────────────────────────────
+local spinPanel=makePanel("Spin")
+spinPanel.CanvasSize=UDim2.new(0,0,0,700)
+Instance.new("UIPadding",spinPanel).PaddingTop=UDim.new(0,10)
 
-lbl({Size=UDim2.new(1,0,0,42),Text="⚔️  SIGMA DUEL",
-    TextColor3=Color3.fromRGB(255,120,120),TextScaled=true,Font=Enum.Font.GothamBold},duelPanel)
+lbl({Size=UDim2.new(1,-16,0,40),Position=UDim2.new(0,8,0,10),
+    Text="🎡  Rizz Spin Wheel",TextColor3=Color3.fromRGB(255,100,255),
+    TextScaled=true,Font=Enum.Font.GothamBold,Parent=spinPanel})
 
--- Duel challenge tab
-local duelChallengeTab = Instance.new("Frame")
-duelChallengeTab.Size=UDim2.new(1,0,1,-46) ; duelChallengeTab.Position=UDim2.new(0,0,0,46)
-duelChallengeTab.BackgroundTransparency=1 ; duelChallengeTab.Parent=duelPanel
-
-local duelNoOpp = lbl({Size=UDim2.new(1,0,0,40),Position=UDim2.new(0,0,0,10),
-    Text="No opponents online",TextColor3=Color3.fromRGB(130,130,130),
-    TextScaled=true,Font=Enum.Font.Gotham},duelChallengeTab)
-
-local duelScroll=Instance.new("ScrollingFrame")
-duelScroll.Size=UDim2.new(1,-12,1,-8) ; duelScroll.Position=UDim2.new(0,6,0,4)
-duelScroll.BackgroundTransparency=1 ; duelScroll.BorderSizePixel=0
-duelScroll.ScrollBarThickness=4 ; duelScroll.CanvasSize=UDim2.new(0,0,0,0)
-duelScroll.Parent=duelChallengeTab
-local duelSL=Instance.new("UIListLayout") ; duelSL.Padding=UDim.new(0,5) ; duelSL.Parent=duelScroll
-
--- Active duel tab (hidden until duel starts)
-local duelActiveTab = Instance.new("Frame")
-duelActiveTab.Size=UDim2.new(1,0,1,-46) ; duelActiveTab.Position=UDim2.new(0,0,0,46)
-duelActiveTab.BackgroundTransparency=1 ; duelActiveTab.Visible=false ; duelActiveTab.Parent=duelPanel
-
-local duelVsLabel=lbl({Size=UDim2.new(1,0,0,40),Position=UDim2.new(0,0,0,5),
-    Text="vs. ???",TextColor3=Color3.fromRGB(255,200,200),TextScaled=true,Font=Enum.Font.GothamBold},duelActiveTab)
-local duelTimerLabel=lbl({Size=UDim2.new(1,0,0,36),Position=UDim2.new(0,0,0,48),
-    Text="⏱ 30s",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},duelActiveTab)
-local duelScoreLabel=lbl({Size=UDim2.new(1,0,0,36),Position=UDim2.new(0,0,0,88),
-    Text="Me: 0  |  Them: 0",TextColor3=Color3.fromRGB(200,200,200),TextScaled=true,Font=Enum.Font.Gotham},duelActiveTab)
-
-duelNavBtn.MouseButton1Click:Connect(function()
-    duelPanel.Visible=not duelPanel.Visible
-    if duelPanel.Visible then shopFrame.Visible=false ; petPanel.Visible=false ; boardPanel.Visible=false end
-end)
-
-local DuelChallenge=Remotes:WaitForChild("DuelChallenge")
-local DuelAccept   =Remotes:WaitForChild("DuelAccept")
-local DuelDecline  =Remotes:WaitForChild("DuelDecline")
-local DuelClick    =Remotes:WaitForChild("DuelClick")
-local isDueling    = false
-
--- Connect click button to also fire DuelClick while in a duel
-clickButton.MouseButton1Click:Connect(function()
-    if isDueling then DuelClick:FireServer() end
-end)
-UIS.InputBegan:Connect(function(inp,gp)
-    if gp then return end
-    if isDueling and inp.KeyCode==Enum.KeyCode.Space then DuelClick:FireServer() end
-end)
-
--- Online players list
-Remotes:WaitForChild("OnlinePlayers").OnClientEvent:Connect(function(names)
-    for _,c in ipairs(duelScroll:GetChildren()) do
-        if c:IsA("Frame") then c:Destroy() end
-    end
-    local myName=player.Name
-    local others={}
-    for _,n in ipairs(names) do if n~=myName then table.insert(others,n) end end
-    duelNoOpp.Visible=#others==0
-    duelScroll.CanvasSize=UDim2.new(0,0,0,#others*58)
-    for _,name in ipairs(others) do
-        local row=Instance.new("Frame")
-        row.Size=UDim2.new(1,0,0,52) ; row.BackgroundColor3=Color3.fromRGB(35,10,10)
-        row.BorderSizePixel=0 ; row.Parent=duelScroll
-        corner(row,8)
-        lbl({Size=UDim2.new(1,-110,1,0),Position=UDim2.new(0,8,0,0),
-            Text=name,TextColor3=Color3.fromRGB(255,200,200),TextScaled=true,
-            Font=Enum.Font.GothamBold,TextXAlignment=Enum.TextXAlignment.Left},row)
-        local cBtn=btn({Size=UDim2.new(0,96,0,32),Position=UDim2.new(1,-102,0.5,-16),
-            BackgroundColor3=Color3.fromRGB(140,0,0),Text="⚔️ Challenge",
-            TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.Gotham},row)
-        corner(cBtn,6)
-        local n2=name
-        cBtn.MouseButton1Click:Connect(function() DuelChallenge:FireServer(n2) end)
-    end
-end)
-
--- ── Duel invite modal ─────────────────────────────────────────────────────
-local inviteModal = Instance.new("Frame")
-inviteModal.Size=UDim2.new(0,380,0,160) ; inviteModal.AnchorPoint=Vector2.new(0.5,0.5)
-inviteModal.Position=UDim2.new(0.5,0,0.5,0) ; inviteModal.BackgroundColor3=Color3.fromRGB(20,5,5)
-inviteModal.BackgroundTransparency=0.05 ; inviteModal.BorderSizePixel=0
-inviteModal.ZIndex=50 ; inviteModal.Visible=false ; inviteModal.Parent=screen
-corner(inviteModal,14)
-Instance.new("UIStroke",inviteModal).Color=Color3.fromRGB(200,50,50)
-
-local inviteLbl=lbl({Size=UDim2.new(1,0,0,56),Position=UDim2.new(0,0,0,8),
-    Text="⚔️ ??? challenged you!",TextColor3=Color3.fromRGB(255,150,150),
-    TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=51},inviteModal)
-local acceptBtn=btn({Size=UDim2.new(0.45,0,0,44),Position=UDim2.new(0.03,0,1,-52),
-    BackgroundColor3=Color3.fromRGB(0,120,50),Text="✅ Accept",
-    TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=51},inviteModal)
-corner(acceptBtn)
-local declineBtn=btn({Size=UDim2.new(0.45,0,0,44),Position=UDim2.new(0.52,0,1,-52),
-    BackgroundColor3=Color3.fromRGB(120,0,0),Text="❌ Decline",
-    TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=51},inviteModal)
-corner(declineBtn)
-
-acceptBtn.MouseButton1Click:Connect(function() DuelAccept:FireServer() ; inviteModal.Visible=false end)
-declineBtn.MouseButton1Click:Connect(function() DuelDecline:FireServer() ; inviteModal.Visible=false end)
-
-Remotes:WaitForChild("DuelInvite").OnClientEvent:Connect(function(data)
-    inviteLbl.Text="⚔️ "..data.challengerName.." challenged you to a Sigma Duel!"
-    inviteModal.Visible=true
-    task.delay(15, function() inviteModal.Visible=false end)
-end)
-
--- Duel start
-Remotes:WaitForChild("DuelStart").OnClientEvent:Connect(function(data)
-    isDueling=true ; inviteModal.Visible=false
-    duelVsLabel.Text="⚔️ vs. "..data.opponentName
-    duelChallengeTab.Visible=false ; duelActiveTab.Visible=true
-    duelPanel.Visible=true
-end)
-
--- Duel update
-Remotes:WaitForChild("DuelUpdate").OnClientEvent:Connect(function(data)
-    duelTimerLabel.Text="⏱ "..data.timeLeft.."s"
-    local mine=data.myClicks or 0 ; local theirs=data.theirClicks or 0
-    duelScoreLabel.Text="Me: "..mine.."  |  Them: "..theirs
-    duelScoreLabel.TextColor3=mine>=theirs and Color3.fromRGB(100,255,100) or Color3.fromRGB(255,100,100)
-end)
-
--- Duel result popup
-local duelResultPopup = Instance.new("Frame")
-duelResultPopup.Size=UDim2.new(0,340,0,100) ; duelResultPopup.AnchorPoint=Vector2.new(0.5,0)
-duelResultPopup.Position=UDim2.new(0.5,0,0,160) ; duelResultPopup.BackgroundColor3=Color3.fromRGB(15,15,15)
-duelResultPopup.BackgroundTransparency=0.05 ; duelResultPopup.BorderSizePixel=0
-duelResultPopup.ZIndex=48 ; duelResultPopup.Visible=false ; duelResultPopup.Parent=screen
-corner(duelResultPopup,14)
-local duelResultLbl=lbl({Size=UDim2.new(1,0,1,0),Text="",
-    TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=49},duelResultPopup)
-
-Remotes:WaitForChild("DuelResult").OnClientEvent:Connect(function(data)
-    isDueling=false
-    duelActiveTab.Visible=false ; duelChallengeTab.Visible=true ; duelPanel.Visible=false
-    local won=(data.winnerName==player.Name)
-    duelResultLbl.Text=won and "⚔️ YOU WON! +"..data.sigmaStake.."σ" or "⚔️ YOU LOST! -"..data.sigmaStake.."σ"
-    duelResultLbl.TextColor3=won and Color3.fromRGB(100,255,150) or Color3.fromRGB(255,100,100)
-    duelResultPopup.Visible=true
-    task.delay(3.5, function() duelResultPopup.Visible=false end)
-end)
-
-Remotes:WaitForChild("DuelCancel").OnClientEvent:Connect(function(data)
-    isDueling=false
-    duelActiveTab.Visible=false ; duelChallengeTab.Visible=true
-    if data and data.reason=="declined" then
-        duelResultLbl.Text="❌ Duel declined"
-        duelResultLbl.TextColor3=Color3.fromRGB(200,200,200)
-        duelResultPopup.Visible=true
-        task.delay(2.5, function() duelResultPopup.Visible=false end)
-    end
-end)
-
--- ── Event banner ──────────────────────────────────────────────────────────
-local evBanner = Instance.new("Frame")
-evBanner.Size=UDim2.new(0,540,0,80) ; evBanner.AnchorPoint=Vector2.new(0.5,0)
-evBanner.Position=UDim2.new(0.5,0,0,-100) ; evBanner.BackgroundColor3=Color3.fromRGB(18,18,18)
-evBanner.BackgroundTransparency=0.05 ; evBanner.BorderSizePixel=0
-evBanner.ZIndex=20 ; evBanner.Parent=screen
-corner(evBanner,14)
-Instance.new("UIStroke",evBanner).Color=Color3.fromRGB(255,215,0)
-
-local evLabel=lbl({Name="EventLabel",Size=UDim2.new(1,-16,0.6,0),Position=UDim2.new(0,8,0,4),
-    Text="",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=21},evBanner)
-local evSub=lbl({Name="EventSub",Size=UDim2.new(1,-16,0.4,0),Position=UDim2.new(0,8,0.6,-2),
-    Text="",TextColor3=Color3.fromRGB(200,200,200),TextScaled=true,Font=Enum.Font.Gotham,ZIndex=21},evBanner)
-
-Remotes:WaitForChild("EventNotify").OnClientEvent:Connect(function(event)
-    if event then
-        evLabel.Text=event.emoji.."  "..event.name:upper().."!"
-        evSub.Text=event.description
-        TweenService:Create(evBanner,TweenInfo.new(0.5,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
-            {Position=UDim2.new(0.5,0,0,148)}):Play()
-    else
-        TweenService:Create(evBanner,TweenInfo.new(0.4,Enum.EasingStyle.Quad,Enum.EasingDirection.In),
-            {Position=UDim2.new(0.5,0,0,-100)}):Play()
-    end
-end)
-
--- ── Server announce banner ───────────────────────────────────────────────
-local annBanner = Instance.new("Frame")
-annBanner.Size=UDim2.new(0,580,0,0) ; annBanner.AnchorPoint=Vector2.new(0.5,0.5)
-annBanner.Position=UDim2.new(0.5,0,0.5,-200) ; annBanner.BackgroundColor3=Color3.fromRGB(18,0,32)
-annBanner.BackgroundTransparency=0.05 ; annBanner.BorderSizePixel=0
-annBanner.ZIndex=25 ; annBanner.Visible=false ; annBanner.Parent=screen
-corner(annBanner,14)
-Instance.new("UIStroke",annBanner).Color=Color3.fromRGB(160,0,255)
-
-local annLabel=lbl({Name="AnnounceLabel",Size=UDim2.new(1,-16,1,0),Position=UDim2.new(0,8,0,0),
-    Text="",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=26},annBanner)
-
-local ANN_COLORS={gold=Color3.fromRGB(255,215,0),purple=Color3.fromRGB(180,0,255)}
-Remotes:WaitForChild("ServerAnnounce").OnClientEvent:Connect(function(data)
-    annLabel.Text=data.text
-    annLabel.TextColor3=ANN_COLORS[data.color] or ANN_COLORS.gold
-    annBanner.Visible=true
-    annBanner.Size=UDim2.new(0,580,0,0)
-    TweenService:Create(annBanner,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
-        {Size=UDim2.new(0,580,0,72)}):Play()
-    task.delay(4, function()
-        TweenService:Create(annBanner,TweenInfo.new(0.3),{Size=UDim2.new(0,580,0,0)}):Play()
-        task.wait(0.35) ; annBanner.Visible=false
-    end)
-end)
-
--- ── God Mode flash + label ────────────────────────────────────────────────
-local godFlash = Instance.new("Frame")
-godFlash.Size=UDim2.new(1,0,1,0) ; godFlash.BackgroundColor3=Color3.fromRGB(255,200,0)
-godFlash.BackgroundTransparency=1 ; godFlash.ZIndex=35 ; godFlash.Visible=false ; godFlash.Parent=screen
-
-local godLabel=lbl({Name="GodModeLabel",Size=UDim2.new(0,480,0,60),
-    AnchorPoint=Vector2.new(0.5,0),Position=UDim2.new(0.5,0,0,200),
-    Text="⚡ SIGMA GOD MODE ⚡",TextColor3=Color3.fromRGB(255,210,0),
-    TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=36,Visible=false},screen)
-
-Remotes:WaitForChild("GodModeActive").OnClientEvent:Connect(function()
-    godFlash.Visible=true ; godFlash.BackgroundTransparency=0.25
-    TweenService:Create(godFlash,TweenInfo.new(0.6),{BackgroundTransparency=1}):Play()
-    task.delay(0.7, function() godFlash.Visible=false end)
-    clickButton.BackgroundColor3=Color3.fromRGB(255,200,0)
-    godLabel.Visible=true
-    task.spawn(function()
-        for i=10,1,-1 do
-            if not godLabel.Visible then break end
-            godLabel.Text="⚡ GOD MODE ⚡ "..i.."s"
-            task.wait(1)
-        end
-        godLabel.Visible=false
-        clickButton.BackgroundColor3=Color3.fromRGB(255,215,0)
-    end)
-end)
-Remotes:WaitForChild("GodModeEnded").OnClientEvent:Connect(function()
-    godLabel.Visible=false
-    clickButton.BackgroundColor3=Color3.fromRGB(255,215,0)
-end)
-
--- ── Hatch cinematic overlay ───────────────────────────────────────────────
-local hatchOverlay = Instance.new("Frame")
-hatchOverlay.Name="HatchOverlay" ; hatchOverlay.Size=UDim2.new(1,0,1,0)
-hatchOverlay.BackgroundColor3=Color3.fromRGB(0,0,0) ; hatchOverlay.BackgroundTransparency=0.35
-hatchOverlay.ZIndex=40 ; hatchOverlay.Visible=false ; hatchOverlay.Parent=screen
-
--- Egg display
-local hatchEggFrame = Instance.new("Frame")
-hatchEggFrame.Size=UDim2.new(0,200,0,200) ; hatchEggFrame.AnchorPoint=Vector2.new(0.5,0.5)
-hatchEggFrame.Position=UDim2.new(0.5,0,0.35,0) ; hatchEggFrame.BackgroundTransparency=1
-hatchEggFrame.ZIndex=41 ; hatchEggFrame.Parent=hatchOverlay
-
-local hatchEggLbl=lbl({Name="HatchEggLbl",Size=UDim2.new(1,0,1,0),
-    Text="🥚",TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=42},hatchEggFrame)
-
--- 3-slot spinner
-local spinFrame = Instance.new("Frame")
-spinFrame.Size=UDim2.new(0,400,0,110) ; spinFrame.AnchorPoint=Vector2.new(0.5,0.5)
-spinFrame.Position=UDim2.new(0.5,0,0.42,0) ; spinFrame.BackgroundColor3=Color3.fromRGB(18,18,18)
-spinFrame.BackgroundTransparency=0.05 ; spinFrame.BorderSizePixel=0
-spinFrame.ZIndex=41 ; spinFrame.Visible=false ; spinFrame.Parent=hatchOverlay
-corner(spinFrame,14)
-
-local slots={}
-for i=1,3 do
-    local off=(i==1) and 4 or ((i==3) and -4 or 0)
-    local s=lbl({Size=UDim2.new(1/3,-8,1,-10),
-        Position=UDim2.new((i-1)/3,off+(i==1 and 0 or (i==2 and 0 or 0)),0,5),
-        Text="🥚",TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=42,
-        TextColor3=Color3.fromRGB(255,255,255)},spinFrame)
-    s.BackgroundColor3=Color3.fromRGB(30,30,30) ; s.BackgroundTransparency=0
-    corner(s,8) ; slots[i]=s
+-- Visual wheel (static colored segments label list)
+local wheelDisplay=Instance.new("Frame")
+wheelDisplay.Size=UDim2.new(1,-32,0,260); wheelDisplay.Position=UDim2.new(0,16,0,58)
+wheelDisplay.BackgroundColor3=Color3.fromRGB(30,20,50); wheelDisplay.BorderSizePixel=0
+wheelDisplay.Parent=spinPanel; corner(wheelDisplay,18)
+local segColors={
+    Color3.fromRGB(200,50,50),Color3.fromRGB(50,150,200),
+    Color3.fromRGB(200,120,0),Color3.fromRGB(50,180,50),
+    Color3.fromRGB(180,50,200),Color3.fromRGB(50,200,200),
+    Color3.fromRGB(200,200,50),Color3.fromRGB(200,100,100),
+}
+local segLayout=Instance.new("UIGridLayout"); segLayout.CellSize=UDim2.new(0.5,-4,0,58)
+segLayout.CellPaddingH=UDim.new(0,4); segLayout.CellPaddingV=UDim.new(0,4)
+segLayout.SortOrder=Enum.SortOrder.LayoutOrder; segLayout.Parent=wheelDisplay
+for i, sp in ipairs(SpinPrizes) do
+    local sLbl=lbl({Size=UDim2.new(0,0,0,0),LayoutOrder=i,
+        BackgroundColor3=segColors[i],BackgroundTransparency=0,
+        Text=sp.emoji.."  "..sp.label,TextColor3=Color3.fromRGB(255,255,255),
+        TextScaled=true,Font=Enum.Font.GothamBold},wheelDisplay)
+    Instance.new("UICorner",sLbl).CornerRadius=UDim.new(0,8)
 end
--- Highlight middle slot
-local stroke=Instance.new("UIStroke") ; stroke.Color=Color3.fromRGB(255,215,0) ; stroke.Thickness=3 ; stroke.Parent=slots[2]
 
--- Result frame
-local resultFrame = Instance.new("Frame")
-resultFrame.Size=UDim2.new(0,360,0,220) ; resultFrame.AnchorPoint=Vector2.new(0.5,0.5)
-resultFrame.Position=UDim2.new(0.5,0,0.5,0) ; resultFrame.BackgroundColor3=Color3.fromRGB(14,14,14)
-resultFrame.BackgroundTransparency=0.05 ; resultFrame.BorderSizePixel=0
-resultFrame.ZIndex=41 ; resultFrame.Visible=false ; resultFrame.Parent=hatchOverlay
-corner(resultFrame,16)
+local spinFreeBtn=btn({Size=UDim2.new(0.45,0,0,52),Position=UDim2.new(0.03,0,0,328),
+    BackgroundColor3=Color3.fromRGB(60,0,120),
+    Text="🆓 Free Spin",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+    Font=Enum.Font.GothamBold,Parent=spinPanel}); corner(spinFreeBtn)
+local spinPaidBtn=btn({Size=UDim2.new(0.45,0,0,52),Position=UDim2.new(0.52,0,0,328),
+    BackgroundColor3=Color3.fromRGB(120,0,60),
+    Text="💎 5 Rizz Spin",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+    Font=Enum.Font.GothamBold,Parent=spinPanel}); corner(spinPaidBtn)
+local spinCooldownLbl=lbl({Size=UDim2.new(1,-16,0,32),Position=UDim2.new(0,8,0,386),
+    Text="Free spin ready!",TextColor3=Color3.fromRGB(180,180,255),TextScaled=true,
+    Font=Enum.Font.Gotham,Parent=spinPanel})
+local spinResultLbl=lbl({Size=UDim2.new(1,-16,0,48),Position=UDim2.new(0,8,0,424),
+    Text="",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,
+    Font=Enum.Font.GothamBold,Parent=spinPanel})
 
-local resPetEmoji=lbl({Size=UDim2.new(1,0,0,80),Text="🐶",TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=42},resultFrame)
-local resPetName =lbl({Size=UDim2.new(1,0,0,44),Position=UDim2.new(0,0,0,80),
-    Text="NPC Dog",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=42},resultFrame)
-local resRarity  =lbl({Size=UDim2.new(1,0,0,36),Position=UDim2.new(0,0,0,124),
-    Text="Common",TextColor3=Color3.fromRGB(190,190,190),TextScaled=true,Font=Enum.Font.Gotham,ZIndex=42},resultFrame)
-local resDup     =lbl({Size=UDim2.new(1,0,0,32),Position=UDim2.new(0,0,0,160),
-    Text="",TextColor3=Color3.fromRGB(150,255,150),TextScaled=true,Font=Enum.Font.Gotham,ZIndex=42},resultFrame)
+spinFreeBtn.MouseButton1Click:Connect(function()
+    Remotes:WaitForChild("SpinWheel"):FireServer(false)
+end)
+spinPaidBtn.MouseButton1Click:Connect(function()
+    Remotes:WaitForChild("SpinWheel"):FireServer(true)
+end)
 
-local continueBtn=btn({Size=UDim2.new(0,180,0,52),AnchorPoint=Vector2.new(0.5,0),
-    Position=UDim2.new(0.5,0,0.72,0),BackgroundColor3=Color3.fromRGB(255,215,0),
-    Text="✨ Continue",TextColor3=Color3.fromRGB(0,0,0),TextScaled=true,
-    Font=Enum.Font.GothamBold,ZIndex=45,Visible=false},hatchOverlay)
-corner(continueBtn,12)
-continueBtn.MouseButton1Click:Connect(function() hatchOverlay.Visible=false end)
+-- ── PANEL: Daily Rewards ──────────────────────────────────────────────────
+local dailyPanel=makePanel("Daily")
+dailyPanel.CanvasSize=UDim2.new(0,0,0,560)
+Instance.new("UIPadding",dailyPanel).PaddingTop=UDim.new(0,10)
+lbl({Size=UDim2.new(1,-16,0,40),Position=UDim2.new(0,8,0,10),
+    Text="📅  Daily Rewards",TextColor3=Color3.fromRGB(80,200,255),
+    TextScaled=true,Font=Enum.Font.GothamBold,Parent=dailyPanel})
+local dailyStrLbl=lbl({Size=UDim2.new(1,-16,0,32),Position=UDim2.new(0,8,0,56),
+    Text="Streak: 0 days",TextColor3=Color3.fromRGB(255,215,0),
+    TextScaled=true,Font=Enum.Font.Gotham,Parent=dailyPanel})
+local dailyGrid=Instance.new("Frame")
+dailyGrid.Size=UDim2.new(1,-16,0,340); dailyGrid.Position=UDim2.new(0,8,0,94)
+dailyGrid.BackgroundTransparency=1; dailyGrid.Parent=dailyPanel
+local dGridLayout=Instance.new("UIGridLayout"); dGridLayout.CellSize=UDim2.new(0,0,0,78)
+-- We'll set cell size dynamically; use a list instead
+dGridLayout:Destroy()
+local dailyDayFrames={}
+for i, dr in ipairs(DailyRewards) do
+    local df=Instance.new("Frame")
+    df.Size=UDim2.new(0,0,0,0); df.BackgroundTransparency=1; df.Parent=dailyGrid
+    -- We'll absolutely position them in a 4-col grid
+    local col=((i-1) % 4); local row=math.floor((i-1)/4)
+    df.Position=UDim2.new(col/4,4,row/2,4)
+    df.Size=UDim2.new(0.25,-8,0,74)
+    df.BackgroundColor3=Color3.fromRGB(25,40,60); df.BorderSizePixel=0; corner(df,8)
+    lbl({Size=UDim2.new(1,0,0.5,0),Text="Day "..i.."  "..dr.emoji,
+        TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},df)
+    lbl({Size=UDim2.new(1,0,0.5,0),Position=UDim2.new(0,0,0.5,0),
+        Text=dr.label,TextColor3=Color3.fromRGB(180,220,255),TextScaled=true,Font=Enum.Font.Gotham},df)
+    table.insert(dailyDayFrames, df)
+end
+local claimDailyBtn=btn({Size=UDim2.new(0.6,0,0,52),
+    AnchorPoint=Vector2.new(0.5,0),Position=UDim2.new(0.5,0,0,448),
+    BackgroundColor3=Color3.fromRGB(0,120,200),
+    Text="📅 Claim Daily",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,
+    Font=Enum.Font.GothamBold,Parent=dailyPanel}); corner(claimDailyBtn)
+local dailyCoolLbl=lbl({Size=UDim2.new(1,-16,0,32),Position=UDim2.new(0,8,0,506),
+    Text="",TextColor3=Color3.fromRGB(180,220,255),TextScaled=true,
+    Font=Enum.Font.Gotham,Parent=dailyPanel})
+claimDailyBtn.MouseButton1Click:Connect(function()
+    Remotes:WaitForChild("ClaimDaily"):FireServer()
+end)
 
-local hatchPlaying=false
-local ALL_EMOJIS={}
-for _,p in ipairs(Pets) do table.insert(ALL_EMOJIS,p.emoji) end
+-- ── PANEL: Quests ─────────────────────────────────────────────────────────
+local questPanel=makePanel("Quests")
+questPanel.CanvasSize=UDim2.new(0,0,0,#Quests*90+20)
+local questLayout=Instance.new("UIListLayout"); questLayout.Padding=UDim.new(0,6); questLayout.Parent=questPanel
+Instance.new("UIPadding",questPanel).PaddingTop=UDim.new(0,8)
+local questRows={}
+for _, q in ipairs(Quests) do
+    local qrow=Instance.new("Frame")
+    qrow.Size=UDim2.new(1,-16,0,80); qrow.BackgroundColor3=Color3.fromRGB(20,30,50)
+    qrow.BorderSizePixel=0; qrow.Parent=questPanel; corner(qrow)
+    lbl({Size=UDim2.new(0.55,0,0.5,0),Position=UDim2.new(0,8,0,4),
+        Text=q.emoji.."  "..q.name,TextColor3=Color3.fromRGB(220,220,255),
+        TextScaled=true,Font=Enum.Font.GothamBold,TextXAlignment=Enum.TextXAlignment.Left},qrow)
+    lbl({Size=UDim2.new(0.55,0,0.4,0),Position=UDim2.new(0,8,0.5,2),
+        Text=q.desc,TextColor3=Color3.fromRGB(160,160,200),TextScaled=true,
+        Font=Enum.Font.Gotham,TextXAlignment=Enum.TextXAlignment.Left},qrow)
+    local rewardLbl=lbl({Size=UDim2.new(0.3,0,0.5,0),AnchorPoint=Vector2.new(1,0),
+        Position=UDim2.new(1,-8,0,4),
+        Text="+"..q.reward.amount..(q.reward.type=="rizz" and "💎" or "σ"),
+        TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},qrow)
+    -- Progress bar background
+    local pBg=Instance.new("Frame"); pBg.Size=UDim2.new(0.42,-4,0,10)
+    pBg.Position=UDim2.new(0.57,2,0.58,2); pBg.BackgroundColor3=Color3.fromRGB(40,40,60)
+    pBg.BorderSizePixel=0; pBg.Parent=qrow; corner(pBg,5)
+    local pFill=Instance.new("Frame"); pFill.Size=UDim2.new(0,0,1,0)
+    pFill.BackgroundColor3=Color3.fromRGB(80,200,255); pFill.BorderSizePixel=0; pFill.Parent=pBg; corner(pFill,5)
+    questRows[q.id]={row=qrow, fill=pFill, reward=rewardLbl, req=q.req.amount or 1}
+end
 
-local function playHatchCinematic(petDef,isDuplicate,rizzBonus,eggDef)
-    if hatchPlaying then return end
-    hatchPlaying=true
+-- ── PANEL: Achievements ───────────────────────────────────────────────────
+local achievePanel=makePanel("Achieve")
+achievePanel.CanvasSize=UDim2.new(0,0,0,#Achievements*86+20)
+local achieveLayout=Instance.new("UIListLayout"); achieveLayout.Padding=UDim.new(0,6); achieveLayout.Parent=achievePanel
+Instance.new("UIPadding",achievePanel).PaddingTop=UDim.new(0,8)
+local achieveRows={}
+for _, a in ipairs(Achievements) do
+    local arow=Instance.new("Frame")
+    arow.Size=UDim2.new(1,-16,0,76); arow.BackgroundColor3=Color3.fromRGB(30,20,50)
+    arow.BorderSizePixel=0; arow.BackgroundTransparency=0.5; arow.Parent=achievePanel; corner(arow)
+    lbl({Size=UDim2.new(0.15,0,1,0),Text=a.emoji,TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},arow)
+    lbl({Size=UDim2.new(0.55,0,0.55,0),Position=UDim2.new(0.15,4,0,4),
+        Text=a.name,TextColor3=Color3.fromRGB(200,200,255),TextScaled=true,Font=Enum.Font.GothamBold,
+        TextXAlignment=Enum.TextXAlignment.Left},arow)
+    lbl({Size=UDim2.new(0.55,0,0.4,0),Position=UDim2.new(0.15,4,0.55,2),
+        Text=a.desc,TextColor3=Color3.fromRGB(150,150,210),TextScaled=true,Font=Enum.Font.Gotham,
+        TextXAlignment=Enum.TextXAlignment.Left},arow)
+    lbl({Size=UDim2.new(0.25,0,0.5,0),AnchorPoint=Vector2.new(1,0),Position=UDim2.new(1,-6,0,6),
+        Text="+"..a.reward.amount..(a.reward.type=="rizz" and "💎" or "σ"),
+        TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},arow)
+    achieveRows[a.id]=arow
+end
+
+-- ── PANEL: Free Rewards ────────────────────────────────────────────────────
+local freePanel=makePanel("Free")
+freePanel.CanvasSize=UDim2.new(0,0,0,440)
+Instance.new("UIPadding",freePanel).PaddingTop=UDim.new(0,10)
+lbl({Size=UDim2.new(1,-16,0,40),Position=UDim2.new(0,8,0,10),
+    Text="🎁  Free Rewards",TextColor3=Color3.fromRGB(100,255,200),
+    TextScaled=true,Font=Enum.Font.GothamBold,Parent=freePanel})
+local FREE_SLOTS_DEF={
+    {id="slot1",label="15 min",emoji="⚡",reward="+10💎"},
+    {id="slot2",label="1 hour", emoji="🔥",reward="+30💎"},
+    {id="slot3",label="24 hours",emoji="💀",reward="+100💎"},
+}
+local COOLDOWN_SECS={slot1=900,slot2=3600,slot3=86400}
+local freeSlotBtns={}; local freeSlotLabels={}
+for i, slot in ipairs(FREE_SLOTS_DEF) do
+    local sf=Instance.new("Frame")
+    sf.Size=UDim2.new(1,-16,0,100); sf.Position=UDim2.new(0,8,0,56+(i-1)*112)
+    sf.BackgroundColor3=Color3.fromRGB(20,50,40); sf.BorderSizePixel=0; sf.Parent=freePanel; corner(sf)
+    lbl({Size=UDim2.new(0.6,0,0.5,0),Position=UDim2.new(0,10,0,6),
+        Text=slot.emoji.."  "..slot.label.." Free — "..slot.reward,
+        TextColor3=Color3.fromRGB(200,255,200),TextScaled=true,Font=Enum.Font.GothamBold,
+        TextXAlignment=Enum.TextXAlignment.Left},sf)
+    local slbl=lbl({Size=UDim2.new(0.6,0,0.4,0),Position=UDim2.new(0,10,0.57,0),
+        Text="Ready!",TextColor3=Color3.fromRGB(150,220,150),TextScaled=true,Font=Enum.Font.Gotham,
+        TextXAlignment=Enum.TextXAlignment.Left},sf)
+    local fsbtn=btn({Size=UDim2.new(0.3,0,0.65,0),AnchorPoint=Vector2.new(1,0.5),
+        Position=UDim2.new(1,-8,0.5,0),BackgroundColor3=Color3.fromRGB(0,140,80),
+        Text="Claim",TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},sf)
+    corner(fsbtn)
+    local sid=slot.id
+    fsbtn.MouseButton1Click:Connect(function()
+        Remotes:WaitForChild("ClaimFreeReward"):FireServer(sid)
+    end)
+    freeSlotBtns[slot.id]=fsbtn; freeSlotLabels[slot.id]=slbl
+end
+
+-- ── Hatch cinematic ───────────────────────────────────────────────────────
+local hatchOverlay=Instance.new("Frame")
+hatchOverlay.Size=UDim2.new(1,0,1,0); hatchOverlay.BackgroundColor3=Color3.fromRGB(0,0,0)
+hatchOverlay.BackgroundTransparency=1; hatchOverlay.ZIndex=30; hatchOverlay.Visible=false; hatchOverlay.Parent=screen
+local hatchLbl=lbl({Size=UDim2.new(1,0,0.35,0),AnchorPoint=Vector2.new(0.5,0.5),
+    Position=UDim2.new(0.5,0,0.45,0),Text="",TextColor3=Color3.fromRGB(255,215,0),
+    TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=31},hatchOverlay)
+local function playHatchCinematic(petId, isDuplicate, rizzBonus)
+    local petDef=petById[petId]
+    if not petDef then return end
+    local col=RARITY_COLORS[petDef.rarity] or Color3.fromRGB(255,255,255)
     hatchOverlay.Visible=true
-    spinFrame.Visible=false ; resultFrame.Visible=false ; continueBtn.Visible=false
-    hatchEggFrame.Visible=true
-    hatchEggLbl.Text=eggDef.emoji
-    hatchEggLbl.TextColor3=eggDef.color or Color3.fromRGB(255,255,255)
-
-    -- Shake the egg
-    for i=1,7 do
-        local ox=(i%2==0) and 14 or -14
-        TweenService:Create(hatchEggFrame,TweenInfo.new(0.07),
-            {Position=UDim2.new(0.5,ox,0.35,0)}):Play()
-        task.wait(0.09)
-    end
-    hatchEggFrame.Position=UDim2.new(0.5,0,0.35,0)
-    hatchEggLbl.Text="💥" ; task.wait(0.3)
-    hatchEggFrame.Visible=false ; spinFrame.Visible=true
-
-    -- Spin slots
-    local intervals={0.06,0.06,0.06}
-    local function spinSlot(idx,stopAfter,finalEmoji)
-        local elapsed=0
-        while elapsed<stopAfter do
-            slots[idx].Text=ALL_EMOJIS[math.random(1,#ALL_EMOJIS)]
-            task.wait(intervals[idx])
-            elapsed+=intervals[idx]
-            if elapsed>stopAfter*0.55 then
-                intervals[idx]=math.min(intervals[idx]+0.012,0.28)
-            end
-        end
-        slots[idx].Text=finalEmoji
-    end
-    local sideA=ALL_EMOJIS[math.random(1,#ALL_EMOJIS)]
-    local sideB=ALL_EMOJIS[math.random(1,#ALL_EMOJIS)]
-    task.spawn(spinSlot,1,1.6,sideA)
-    task.spawn(spinSlot,2,2.5,petDef.emoji)  -- middle slot is result
-    task.spawn(spinSlot,3,1.9,sideB)
-    task.wait(2.7)
-
-    -- Show result
-    spinFrame.Visible=false ; resultFrame.Visible=true
-    resultFrame.Size=UDim2.new(0,0,0,0)
-    resPetEmoji.Text=petDef.emoji ; resPetName.Text=petDef.name
-    resRarity.Text="✦ "..petDef.rarity.." ✦"
-    resRarity.TextColor3=RARITY_COLORS[petDef.rarity] or Color3.fromRGB(190,190,190)
+    TweenService:Create(hatchOverlay,TweenInfo.new(0.25),{BackgroundTransparency=0.08}):Play()
+    hatchLbl.Text=petDef.emoji
+    hatchLbl.TextSize=1
+    TweenService:Create(hatchLbl,TweenInfo.new(0.6,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{TextSize=160}):Play()
+    task.wait(0.7)
+    hatchLbl.Text=petDef.emoji.."\n"..petDef.rarity.." — "..petDef.name
+    hatchLbl.TextColor3=col
+    hatchLbl.TextSize=72
     if isDuplicate then
-        resDup.Text="DUPLICATE! 💎 +"..rizzBonus.." Rizz returned"
-        resDup.TextColor3=Color3.fromRGB(200,150,255)
-    else
-        resDup.Text="🎉 NEW PET!" ; resDup.TextColor3=Color3.fromRGB(255,215,0)
+        task.wait(0.7)
+        hatchLbl.Text=hatchLbl.Text.."\n(Duplicate! +"..rizzBonus.."💎)"
+        hatchLbl.TextColor3=Color3.fromRGB(200,200,100)
+        hatchLbl.TextSize=52
     end
-    TweenService:Create(resultFrame,TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
-        {Size=UDim2.new(0,360,0,220)}):Play()
-    task.wait(0.55) ; continueBtn.Visible=true
-    hatchPlaying=false
+    task.wait(1.2)
+    TweenService:Create(hatchOverlay,TweenInfo.new(0.25),{BackgroundTransparency=1}):Play()
+    task.wait(0.3)
+    hatchOverlay.Visible=false
+    hatchLbl.TextSize=72
 end
 
-Remotes:WaitForChild("HatchResult").OnClientEvent:Connect(function(data)
-    local eggDef,petDef=nil,nil
-    for _,e in ipairs(Eggs) do if e.id==data.eggId then eggDef=e break end end
-    for _,p in ipairs(Pets) do if p.id==data.petId then petDef=p break end end
-    if eggDef and petDef then
-        task.spawn(playHatchCinematic,petDef,data.isDuplicate,data.rizzBonus,eggDef)
-    end
-end)
+-- ── Evolve Result cinematic ───────────────────────────────────────────────
+local evolveOverlay=Instance.new("Frame")
+evolveOverlay.Size=UDim2.new(1,0,1,0); evolveOverlay.BackgroundColor3=Color3.fromRGB(20,10,0)
+evolveOverlay.BackgroundTransparency=1; evolveOverlay.ZIndex=32; evolveOverlay.Visible=false; evolveOverlay.Parent=screen
+local evolveLbl=lbl({Size=UDim2.new(1,0,0.4,0),AnchorPoint=Vector2.new(0.5,0.5),
+    Position=UDim2.new(0.5,0,0.45,0),Text="",TextColor3=Color3.fromRGB(255,215,0),
+    TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=33},evolveOverlay)
+local function playEvolveCinematic(evolvedName, evolvedEmoji)
+    evolveOverlay.Visible=true
+    TweenService:Create(evolveOverlay,TweenInfo.new(0.3),{BackgroundTransparency=0.08}):Play()
+    evolveLbl.Text="🌟"
+    evolveLbl.TextSize=1
+    TweenService:Create(evolveLbl,TweenInfo.new(0.7,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{TextSize=160}):Play()
+    task.wait(0.8)
+    evolveLbl.Text=evolvedEmoji.."\n"..evolvedName.."\n✨ Evolved!"
+    evolveLbl.TextColor3=Color3.fromRGB(255,180,50)
+    evolveLbl.TextSize=64
+    task.wait(1.5)
+    TweenService:Create(evolveOverlay,TweenInfo.new(0.3),{BackgroundTransparency=1}):Play()
+    task.wait(0.35); evolveOverlay.Visible=false
+end
 
--- ── Floating numbers ──────────────────────────────────────────────────────
+-- ── Achievement popup ─────────────────────────────────────────────────────
+local achievePopup=Instance.new("Frame")
+achievePopup.Size=UDim2.new(0,320,0,84); achievePopup.AnchorPoint=Vector2.new(0.5,1)
+achievePopup.Position=UDim2.new(0.5,0,1,-58); achievePopup.BackgroundColor3=Color3.fromRGB(40,30,60)
+achievePopup.BackgroundTransparency=0.08; achievePopup.BorderSizePixel=0; achievePopup.ZIndex=25; achievePopup.Visible=false; achievePopup.Parent=screen; corner(achievePopup)
+local achvLbl=lbl({Size=UDim2.new(1,-12,1,0),Position=UDim2.new(0,6,0,0),
+    Text="",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=26},achievePopup)
+local function showAchievePop(data)
+    achvLbl.Text="🏅 "..data.name.."\n"..data.desc
+    achievePopup.Visible=true
+    task.delay(3, function() achievePopup.Visible=false end)
+end
+
+-- ── Floating sigma numbers ────────────────────────────────────────────────
 local CRIT_COLORS={
     ["GIGACHAD!!"]=Color3.fromRGB(255,60,60),
     ["SIGMA!"]    =Color3.fromRGB(255,140,0),
     ["NICE"]      =Color3.fromRGB(255,215,0),
     [""]          =Color3.fromRGB(255,255,255),
 }
-local function spawnFloat(gain,critLabel)
+local function spawnFloat(gain, critLabel)
     local fl=Instance.new("TextLabel")
-    fl.Size=UDim2.new(0,180,0,52) ; fl.AnchorPoint=Vector2.new(0.5,0.5)
+    fl.Size=UDim2.new(0,180,0,52); fl.AnchorPoint=Vector2.new(0.5,0.5)
     fl.Position=UDim2.new(0.5,math.random(-80,80),1,-295)
     fl.BackgroundTransparency=1
     fl.TextColor3=CRIT_COLORS[critLabel] or Color3.fromRGB(255,255,255)
-    fl.TextScaled=true ; fl.Font=Enum.Font.GothamBold ; fl.ZIndex=10
+    fl.TextScaled=true; fl.Font=Enum.Font.GothamBold; fl.ZIndex=10
     fl.Text=critLabel~="" and (critLabel.."! +"..gain.."σ") or ("+"..gain.."σ")
     fl.Parent=screen
     TweenService:Create(fl,TweenInfo.new(0.75,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),
@@ -717,37 +654,91 @@ local function spawnFloat(gain,critLabel)
     task.delay(0.85, function() fl:Destroy() end)
 end
 
--- ── UpdateUI handler ──────────────────────────────────────────────────────
+-- ── Click button wiring ───────────────────────────────────────────────────
+local ClickRemote=Remotes:WaitForChild("ClickSigma")
+clickBtn.MouseButton1Click:Connect(function()
+    ClickRemote:FireServer()
+    TweenService:Create(clickBtn,TweenInfo.new(0.06),{Size=UDim2.new(0,180,0,180)}):Play()
+    task.delay(0.1, function()
+        TweenService:Create(clickBtn,TweenInfo.new(0.1),{Size=UDim2.new(0,200,0,200)}):Play()
+    end)
+end)
+
+-- ── Prestige / Ascension buttons ─────────────────────────────────────────
+prestigeBtn.MouseButton1Click:Connect(function()
+    Remotes:WaitForChild("Prestige"):FireServer()
+end)
+ascendBtn.MouseButton1Click:Connect(function()
+    -- Confirm modal
+    local confirmed=false
+    local modal=Instance.new("Frame")
+    modal.Size=UDim2.new(0,350,0,160); modal.AnchorPoint=Vector2.new(0.5,0.5)
+    modal.Position=UDim2.new(0.5,0,0.5,0); modal.BackgroundColor3=Color3.fromRGB(40,0,0)
+    modal.ZIndex=40; modal.Parent=screen; corner(modal)
+    lbl({Size=UDim2.new(1,-12,0.55,0),Position=UDim2.new(0,6,0,6),
+        Text="✨ TRUE RESET\nAll progress resets. Permanent "..
+             "multiplier gained.\nAscend?",
+        TextColor3=Color3.fromRGB(255,180,50),TextScaled=true,Font=Enum.Font.Gotham,
+        TextWrapped=true,ZIndex=41},modal)
+    local yesBtn=btn({Size=UDim2.new(0.4,0,0.35,0),Position=UDim2.new(0.06,0,0.62,0),
+        BackgroundColor3=Color3.fromRGB(180,20,20),Text="Yes, Ascend!",
+        TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=41},modal)
+    corner(yesBtn)
+    local noBtn=btn({Size=UDim2.new(0.4,0,0.35,0),Position=UDim2.new(0.54,0,0.62,0),
+        BackgroundColor3=Color3.fromRGB(40,80,40),Text="Cancel",
+        TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold,ZIndex=41},modal)
+    corner(noBtn)
+    yesBtn.MouseButton1Click:Connect(function()
+        modal:Destroy(); Remotes:WaitForChild("Ascend"):FireServer()
+    end)
+    noBtn.MouseButton1Click:Connect(function() modal:Destroy() end)
+end)
+
+-- ── UpdateUI ─────────────────────────────────────────────────────────────
 Remotes:WaitForChild("UpdateUI").OnClientEvent:Connect(function(data)
     sigmaLabel.Text="😎  "..tostring(data.sigma).." σ"
     petIncomeLabel.Text="🐾 "..tostring(data.petIncome).." σ/sec"
-    multLabel.Text="x"..tostring(data.multiplier).." per click"
+    multLabel.Text="x"..string.format("%.1f", data.multiplier).." per click"
     rizzLabel.Text="💎  "..tostring(data.rizzTokens).." Rizz"
     rankLabel.Text=data.rank.emoji.."  "..data.rank.name
 
+    -- Prestige progress bar
     if data.nextRank then
-        local prev=data.rank.sigmaRequired ; local nxt=data.nextRank.sigmaRequired
+        local prev=data.rank.sigmaRequired; local nxt=data.nextRank.sigmaRequired
         local pct=math.clamp((data.sigma-prev)/(nxt-prev),0,1)
         TweenService:Create(progBar,TweenInfo.new(0.2),{Size=UDim2.new(pct,0,1,0)}):Play()
     else
         progBar.Size=UDim2.new(1,0,1,0)
     end
 
-    -- Prestige button
-    local canP=data.sigma>=data.prestThresh
+    -- Prestige & Ascension buttons
+    local canP=data.sigma>=(data.prestThresh or 10000)
     prestigeBtn.Visible=canP
     if canP then
         prestigeBtn.Text="🌌 PRESTIGE #"..(data.prestige+1)
         prestigeBtn.BackgroundColor3=Color3.fromRGB(120,0,180)
     end
+    ascendBtn.Visible=data.ascendUnlocked == true
+    if data.ascendUnlocked then
+        local aMultStr=tostring(data.ascendMulti or 1)
+        ascendBtn.Text="✨ ASCEND ("..aMultStr.."x)"
+    end
+
+    -- Spin boost
+    if data.spinBoostLeft and data.spinBoostLeft > 0 then
+        spinBoostLabel.Text="⚡ 2x BOOST "..data.spinBoostLeft.."s"
+        spinBoostLabel.Visible=true
+    else
+        spinBoostLabel.Visible=false
+    end
 
     -- Floating number
     if data.lastGain and data.lastGain>0 then
-        spawnFloat(data.lastGain,data.critLabel or "")
+        spawnFloat(data.lastGain, data.critLabel or "")
     end
 
     -- Upgrade affordability
-    for _,u in ipairs(Upgrades) do
+    for _, u in ipairs(Upgrades) do
         local b=upgradeButtons[u.id]
         if b then
             local can=data.sigma>=u.cost
@@ -756,8 +747,134 @@ Remotes:WaitForChild("UpdateUI").OnClientEvent:Connect(function(data)
         end
     end
 
-    -- Rebuild My Pets tab
-    rebuildMyPets(data.ownedPets, data.equippedPets)
+    -- Rebuild pets panel
+    rebuildMyPets(data.ownedPets, data.equippedPets, data.evolvedPets)
+
+    -- Daily rewards UI
+    if data.dailyStreak then
+        dailyStrLbl.Text="Streak: "..data.dailyStreak.." day(s)"
+        local streak=data.dailyStreak
+        for i, df in ipairs(dailyDayFrames) do
+            if i <= streak then
+                df.BackgroundColor3=Color3.fromRGB(0,100,50)
+            elseif i == streak+1 then
+                df.BackgroundColor3=Color3.fromRGB(0,60,120)
+            else
+                df.BackgroundColor3=Color3.fromRGB(25,40,60)
+            end
+        end
+        local now=os.time()
+        local last=data.lastDailyClaim or 0
+        local since=now-last
+        if since < 20*3600 then
+            local rem=20*3600-since
+            local h=math.floor(rem/3600); local m=math.floor((rem%3600)/60)
+            dailyCoolLbl.Text=string.format("Next claim in: %dh %dm", h, m)
+            claimDailyBtn.BackgroundColor3=Color3.fromRGB(60,60,60)
+        else
+            dailyCoolLbl.Text="✅ Claim available!"
+            claimDailyBtn.BackgroundColor3=Color3.fromRGB(0,120,200)
+        end
+    end
+
+    -- Spin cooldown display
+    if data.lastSpin then
+        local now=os.time(); local since=now-(data.lastSpin or 0)
+        if since < 6*3600 then
+            local rem=6*3600-since
+            local h=math.floor(rem/3600); local m=math.floor((rem%3600)/60)
+            spinCooldownLbl.Text=string.format("Free spin in: %dh %dm", h, m)
+            spinFreeBtn.BackgroundColor3=Color3.fromRGB(50,50,50)
+        else
+            spinCooldownLbl.Text="🎡 Free spin ready!"
+            spinFreeBtn.BackgroundColor3=Color3.fromRGB(60,0,120)
+        end
+    end
+
+    -- Free rewards cooldown display
+    if data.freeSlotClaimed then
+        local now=os.time()
+        for _, slot in ipairs(FREE_SLOTS_DEF) do
+            local last=data.freeSlotClaimed[slot.id] or 0
+            local since=now-last
+            local cd=COOLDOWN_SECS[slot.id] or 900
+            local sBtn=freeSlotBtns[slot.id]; local sLbl=freeSlotLabels[slot.id]
+            if sBtn and sLbl then
+                if since < cd then
+                    local rem=cd-since
+                    local h=math.floor(rem/3600); local m=math.floor((rem%3600)/60); local s=rem%60
+                    if h>0 then sLbl.Text=h.."h "..m.."m" else sLbl.Text=m.."m "..s.."s" end
+                    sBtn.BackgroundColor3=Color3.fromRGB(50,50,50)
+                else
+                    sLbl.Text="✅ Ready!"
+                    sBtn.BackgroundColor3=Color3.fromRGB(0,140,80)
+                end
+            end
+        end
+    end
+end)
+
+-- ── Quest updates ─────────────────────────────────────────────────────────
+Remotes:WaitForChild("QuestUpdate").OnClientEvent:Connect(function(data)
+    for _, q in ipairs(Quests) do
+        local qr=questRows[q.id]
+        if qr then
+            local prog=data.questProgress[q.id] or 0
+            local done=data.questDone[q.id]
+            local pct=math.clamp(prog/(qr.req),0,1)
+            TweenService:Create(qr.fill,TweenInfo.new(0.3),{Size=UDim2.new(pct,0,1,0)}):Play()
+            if done then
+                qr.row.BackgroundColor3=Color3.fromRGB(0,60,30)
+                qr.reward.Text="✅"
+            end
+        end
+    end
+end)
+
+-- ── Achievement unlock ────────────────────────────────────────────────────
+Remotes:WaitForChild("AchieveUnlock").OnClientEvent:Connect(function(data)
+    local arow=achieveRows[data.id]
+    if arow then
+        arow.BackgroundTransparency=0
+        arow.BackgroundColor3=Color3.fromRGB(60,40,0)
+    end
+    showAchievePop(data)
+end)
+
+-- ── Hatch result ─────────────────────────────────────────────────────────
+Remotes:WaitForChild("HatchResult").OnClientEvent:Connect(function(result)
+    if result.skipCinematic then return end
+    task.spawn(function()
+        playHatchCinematic(result.petId, result.isDuplicate, result.rizzBonus or 0)
+    end)
+end)
+
+-- ── Evolve result ─────────────────────────────────────────────────────────
+Remotes:WaitForChild("EvolvePetResult").OnClientEvent:Connect(function(result)
+    task.spawn(function()
+        playEvolveCinematic(result.evolvedName, result.evolvedEmoji)
+    end)
+end)
+
+-- ── Spin wheel result ─────────────────────────────────────────────────────
+Remotes:WaitForChild("SpinResult").OnClientEvent:Connect(function(data)
+    local prize=data.prize
+    spinResultLbl.Text="🎡 You won: "..prize.emoji.."  "..prize.label.."!"
+    showAnn("🎡 Spin reward: "..prize.emoji.."  "..prize.label)
+end)
+
+-- ── Auto-roll status ──────────────────────────────────────────────────────
+Remotes:WaitForChild("AutoRollStatus").OnClientEvent:Connect(function(data)
+    -- Update auto-roll button color on the egg row
+    for _, child in ipairs(shopPanel:GetChildren()) do
+        if child:IsA("Frame") and child:GetAttribute("EggId") == data.eggId then
+            local arbtn=child:FindFirstChild("Auto")
+            if arbtn then
+                arbtn.BackgroundColor3 = data.active and Color3.fromRGB(0,160,60) or Color3.fromRGB(40,80,40)
+                arbtn.Text = data.active and "■ Auto" or "▶ Auto"
+            end
+        end
+    end
 end)
 
 -- ── Co-op boost ───────────────────────────────────────────────────────────
@@ -769,7 +886,7 @@ end)
 -- ── Leaderboard update ────────────────────────────────────────────────────
 local MEDALS={"🥇","🥈","🥉","4️⃣","5️⃣"}
 Remotes:WaitForChild("LeaderboardUpdate").OnClientEvent:Connect(function(top5)
-    for i,row in ipairs(boardRows) do
+    for i, row in ipairs(boardRows) do
         local entry=top5 and top5[i]
         if entry then
             local pre=entry.prestige>0 and " ⭐"..entry.prestige or ""
@@ -780,3 +897,82 @@ Remotes:WaitForChild("LeaderboardUpdate").OnClientEvent:Connect(function(top5)
         end
     end
 end)
+
+-- ── God mode ──────────────────────────────────────────────────────────────
+Remotes:WaitForChild("GodModeActive").OnClientEvent:Connect(function()
+    godLabel.Visible=true
+    TweenService:Create(godFlash,TweenInfo.new(0.2),{BackgroundTransparency=0.7}):Play()
+    task.delay(0.3, function()
+        TweenService:Create(godFlash,TweenInfo.new(0.2),{BackgroundTransparency=1}):Play()
+    end)
+end)
+Remotes:WaitForChild("GodModeEnded").OnClientEvent:Connect(function()
+    godLabel.Visible=false
+end)
+
+-- ── Event notification ─────────────────────────────────────────────────────
+Remotes:WaitForChild("EventNotify").OnClientEvent:Connect(function(event)
+    if event then
+        eventBanner.Visible=true
+        eventBanner.Text="⚡ EVENT: "..event.name.."  — "..event.description
+    else
+        eventBanner.Visible=false
+    end
+end)
+
+-- ── Server announce ────────────────────────────────────────────────────────
+Remotes:WaitForChild("ServerAnnounce").OnClientEvent:Connect(function(msg)
+    if msg and msg.text then showAnn(msg.text) end
+end)
+
+-- ── Duel events ────────────────────────────────────────────────────────────
+Remotes:WaitForChild("DuelInvite").OnClientEvent:Connect(function(data)
+    duelStatus.Text="⚔️ "..data.challengerName.." challenged you to a duel!\n(Tap Accept or Decline in Duels tab)"
+    showPanel("Duels")
+    -- Auto-add accept/decline if not present
+    if not duelPanel:FindFirstChild("AcceptBtn") then
+        local abtn=btn({Name="AcceptBtn",Size=UDim2.new(0.4,0,0,44),Position=UDim2.new(0.05,0,0,300),
+            BackgroundColor3=Color3.fromRGB(0,140,60),Text="✅ Accept",
+            TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},duelPanel)
+        corner(abtn)
+        abtn.MouseButton1Click:Connect(function()
+            Remotes:WaitForChild("DuelAccept"):FireServer()
+            abtn:Destroy()
+            local db=duelPanel:FindFirstChild("DeclineBtn"); if db then db:Destroy() end
+        end)
+        local dbtn=btn({Name="DeclineBtn",Size=UDim2.new(0.4,0,0,44),Position=UDim2.new(0.55,0,0,300),
+            BackgroundColor3=Color3.fromRGB(140,0,0),Text="❌ Decline",
+            TextColor3=Color3.fromRGB(255,255,255),TextScaled=true,Font=Enum.Font.GothamBold},duelPanel)
+        corner(dbtn)
+        dbtn.MouseButton1Click:Connect(function()
+            Remotes:WaitForChild("DuelDecline"):FireServer()
+            dbtn:Destroy()
+            local ab=duelPanel:FindFirstChild("AcceptBtn"); if ab then ab:Destroy() end
+        end)
+    end
+end)
+
+Remotes:WaitForChild("DuelStart").OnClientEvent:Connect(function(data)
+    duelClickBtn.Visible=true
+    duelStatus.Text="⚔️ DUEL vs "..data.opponentName.."! CLICK AS FAST AS YOU CAN!"
+end)
+Remotes:WaitForChild("DuelUpdate").OnClientEvent:Connect(function(data)
+    duelStatus.Text=string.format("⚔️ You: %d  |  Them: %d  |  ⏱ %ds",
+        data.myClicks, data.theirClicks, data.timeLeft)
+end)
+Remotes:WaitForChild("DuelResult").OnClientEvent:Connect(function(data)
+    duelClickBtn.Visible=false
+    local won=(data.winnerName==player.Name)
+    duelStatus.Text=won and ("🏆 You won the duel! +"..data.sigmaStake.."σ")
+        or ("💀 You lost the duel. -"..data.sigmaStake.."σ")
+end)
+Remotes:WaitForChild("DuelCancel").OnClientEvent:Connect(function(data)
+    duelClickBtn.Visible=false
+    local reason=data and data.reason
+    duelStatus.Text=reason=="declined" and "❌ Challenge declined."
+        or reason=="opponent_left" and "❌ Opponent left the game."
+        or "❌ Duel cancelled."
+end)
+
+-- ── Default panel on load ─────────────────────────────────────────────────
+showPanel("Upgrades")
