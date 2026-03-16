@@ -1,5 +1,7 @@
--- ClickHandler.client.lua
--- Client | Click input, button animation, combo detection
+-- ClickHandler.client.lua  (OBSOLETE — V1/V2/V3 only)
+-- All click input and combo logic is now handled in UIManager.client.lua.
+-- This file intentionally does nothing to avoid conflicting with V4.
+do return end
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

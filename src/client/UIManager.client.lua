@@ -126,7 +126,7 @@ task.delay(5, dismissHint)
 
 -- ── TOP RIGHT: Rizz counter ───────────────────────────────────────────────
 local rizzFrame=Instance.new("Frame")
-rizzFrame.Size=UDim2.new(0,180,0,46); rizzFrame.Position=UDim2.new(1,-190,0,12)
+rizzFrame.Size=UDim2.new(0,180,0,46); rizzFrame.Position=UDim2.new(1,-190-NAV_RAIL_W,0,12)
 rizzFrame.BackgroundColor3=Color3.fromRGB(55,0,90); rizzFrame.BackgroundTransparency=0.05
 rizzFrame.BorderSizePixel=0; rizzFrame.Parent=screen; corner(rizzFrame)
 Instance.new("UIStroke",rizzFrame).Color=Color3.fromRGB(140,60,220)
@@ -148,7 +148,7 @@ local multLabel=lbl({Name="MultLabel",Size=UDim2.new(1,0,0.27,0),Position=UDim2.
 
 -- Spin boost indicator
 local spinBoostLabel=lbl({Name="SpinBoostLabel",Size=UDim2.new(0,180,0,22),
-    Position=UDim2.new(1,-190,0,62),
+    Position=UDim2.new(1,-190-NAV_RAIL_W,0,62),
     Text="",TextColor3=Color3.fromRGB(255,100,255),TextScaled=true,
     Font=Enum.Font.GothamBold,Visible=false},screen)
 
@@ -238,26 +238,27 @@ local NAV_TABS = {
     { id="Free",     icon="🎁", label="Free",    accent=Color3.fromRGB(40, 220, 200)  },
 }
 
--- Pill dimensions
-local NAV_BTN_W   = 88   -- px, each capsule
-local NAV_BTN_H   = 52   -- px, bar inner height
-local NAV_BAR_H   = 68   -- px, total bar height (includes padding)
+-- Rail dimensions (vertical right-side nav)
+local NAV_RAIL_W  = 72   -- px, total rail width
+local NAV_BTN_W   = 56   -- px, pill width inside rail
+local NAV_BTN_H   = 56   -- px, pill height (square-ish)
+local NAV_BAR_H   = 72   -- legacy alias (== NAV_RAIL_W)
 local NAV_PADDING = 8    -- gap between pills
 
 -- ── Bar backing surface ───────────────────────────────────────────────────
 local navBacking = Instance.new("Frame")
 navBacking.Name             = "NavBacking"
-navBacking.Size             = UDim2.new(1, 0, 0, NAV_BAR_H)
-navBacking.Position         = UDim2.new(0, 0, 1, -NAV_BAR_H)
+navBacking.Size             = UDim2.new(0, NAV_RAIL_W, 1, 0)
+navBacking.Position         = UDim2.new(1, -NAV_RAIL_W, 0, 0)
 navBacking.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 navBacking.BackgroundTransparency = 0
 navBacking.BorderSizePixel  = 0
 navBacking.ZIndex           = 5
 navBacking.Parent           = screen
 
--- Top edge separator line
+-- Left edge separator line (for vertical rail)
 local navSep = Instance.new("Frame")
-navSep.Size             = UDim2.new(1, 0, 0, 1)
+navSep.Size             = UDim2.new(0, 1, 1, 0)
 navSep.Position         = UDim2.new(0, 0, 0, 0)
 navSep.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
 navSep.BorderSizePixel  = 0
@@ -267,31 +268,32 @@ navSep.Parent           = navBacking
 -- Scrolling pill row inside the backing
 local navBar = Instance.new("ScrollingFrame")
 navBar.Name                  = "NavBar"
-navBar.Size                  = UDim2.new(1, -16, 1, -NAV_PADDING)
-navBar.Position               = UDim2.new(0, 8, 0, NAV_PADDING // 2)
+navBar.Size                  = UDim2.new(1, -NAV_PADDING, 1, -NAV_PADDING)
+navBar.Position               = UDim2.new(0, NAV_PADDING // 2, 0, NAV_PADDING // 2)
 navBar.BackgroundTransparency = 1
 navBar.BorderSizePixel        = 0
 navBar.ScrollBarThickness     = 0
-navBar.ScrollingDirection     = Enum.ScrollingDirection.X
-navBar.CanvasSize             = UDim2.new(0, #NAV_TABS * (NAV_BTN_W + NAV_PADDING), 0, 0)
+navBar.ScrollingDirection     = Enum.ScrollingDirection.Y
+navBar.CanvasSize             = UDim2.new(0, 0, 0, #NAV_TABS * (NAV_BTN_H + NAV_PADDING))
 navBar.ZIndex                 = 6
 navBar.Parent                 = navBacking
 navBar.AutomaticCanvasSize    = Enum.AutomaticSize.None
 
 local navLayout = Instance.new("UIListLayout")
-navLayout.FillDirection      = Enum.FillDirection.Horizontal
-navLayout.SortOrder          = Enum.SortOrder.LayoutOrder
-navLayout.Padding            = UDim.new(0, NAV_PADDING)
-navLayout.VerticalAlignment  = Enum.VerticalAlignment.Center
-navLayout.Parent             = navBar
+navLayout.FillDirection       = Enum.FillDirection.Vertical
+navLayout.SortOrder           = Enum.SortOrder.LayoutOrder
+navLayout.Padding             = UDim.new(0, NAV_PADDING)
+navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+navLayout.Parent              = navBar
 
 -- ── PANELS container ──────────────────────────────────────────────────────
 local panelHost = Instance.new("Frame")
 panelHost.Name                  = "PanelHost"
-panelHost.Size                  = UDim2.new(1, 0, 1, -NAV_BAR_H)
+panelHost.Size                  = UDim2.new(1, -NAV_RAIL_W, 1, 0)
 panelHost.Position              = UDim2.new(0, 0, 0, 0)
 panelHost.BackgroundTransparency = 1
 panelHost.ClipsDescendants      = true
+panelHost.Active                = false   -- Bug 1 fix: pass clicks through to tapCatcher
 panelHost.ZIndex                = 2
 panelHost.Parent                = screen
 
@@ -358,7 +360,7 @@ for i, tab in ipairs(NAV_TABS) do
     -- Outer pill
     local pill = Instance.new("TextButton")
     pill.Name                   = "NavPill_"..tab.id
-    pill.Size                   = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H - 4)
+    pill.Size                   = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H)
     pill.BackgroundColor3       = Color3.fromRGB(28, 28, 40)
     pill.BackgroundTransparency = 0.1
     pill.BorderSizePixel        = 0
@@ -377,11 +379,11 @@ for i, tab in ipairs(NAV_TABS) do
     pillStroke.Transparency = 1
     pillStroke.Parent      = pill
 
-    -- Bottom accent bar (hidden when unselected)
+    -- Left accent bar (hidden when unselected)
     local accentBar = Instance.new("Frame")
-    accentBar.Size                  = UDim2.new(0.6, 0, 0, 3)
-    accentBar.AnchorPoint           = Vector2.new(0.5, 1)
-    accentBar.Position              = UDim2.new(0.5, 0, 1, -1)
+    accentBar.Size                  = UDim2.new(0, 3, 0.6, 0)
+    accentBar.AnchorPoint           = Vector2.new(0, 0.5)
+    accentBar.Position              = UDim2.new(0, 1, 0.5, 0)
     accentBar.BackgroundColor3      = tab.accent
     accentBar.BackgroundTransparency = 1
     accentBar.BorderSizePixel       = 0
@@ -389,10 +391,10 @@ for i, tab in ipairs(NAV_TABS) do
     accentBar.Parent                = pill
     Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
 
-    -- Icon label (top half)
+    -- Icon label (fills pill — icon-first for accessibility)
     local iconLbl = Instance.new("TextLabel")
-    iconLbl.Size                 = UDim2.new(1, 0, 0.54, 0)
-    iconLbl.Position             = UDim2.new(0, 0, 0, 1)
+    iconLbl.Size                 = UDim2.new(1, 0, 0.72, 0)
+    iconLbl.Position             = UDim2.new(0, 0, 0.14, 0)
     iconLbl.BackgroundTransparency = 1
     iconLbl.Text                 = tab.icon
     iconLbl.TextScaled           = true
@@ -402,16 +404,17 @@ for i, tab in ipairs(NAV_TABS) do
     iconLbl.ZIndex               = 8
     iconLbl.Parent               = pill
 
-    -- Text label (bottom half)
+    -- Text label (hidden on vertical rail — icons only)
     local textLbl = Instance.new("TextLabel")
-    textLbl.Size                 = UDim2.new(1, -4, 0.38, 0)
-    textLbl.Position             = UDim2.new(0, 2, 0.56, 0)
+    textLbl.Size                 = UDim2.new(1, -4, 0.22, 0)
+    textLbl.Position             = UDim2.new(0, 2, 0.76, 0)
     textLbl.BackgroundTransparency = 1
     textLbl.Text                 = tab.label
     textLbl.TextScaled           = true
     textLbl.Font                 = Enum.Font.GothamBold
     textLbl.TextColor3           = Color3.fromRGB(160, 160, 180)
     textLbl.ZIndex               = 8
+    textLbl.Visible              = false   -- icons-only on vertical rail
     textLbl.Parent               = pill
 
     -- Store refs
@@ -427,10 +430,10 @@ for i, tab in ipairs(NAV_TABS) do
     -- Press animation + panel switch
     local tabId = tab.id
     pill.MouseButton1Down:Connect(function()
-        tw(pill, { Size = UDim2.new(0, NAV_BTN_W - 6, 0, NAV_BTN_H - 10) }, 0.08)
+        tw(pill, { Size = UDim2.new(0, NAV_BTN_W - 6, 0, NAV_BTN_H - 6) }, 0.08)
     end)
     pill.MouseButton1Up:Connect(function()
-        tw(pill, { Size = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H - 4) }, 0.12)
+        tw(pill, { Size = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H) }, 0.12)
         showPanel(tabId)
     end)
     -- Touch support (fires after Up on mobile too, but MouseButton1Up covers it)
