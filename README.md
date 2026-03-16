@@ -8,6 +8,17 @@ A Roblox brainrot idle clicker game built with Rojo + VS Code.
 
 ---
 
+## 👥 Team
+
+| Role | Name | Responsibilities |
+|------|------|-----------------|
+| Lead Developer | Alex | All server/client Lua code, game systems, DataStore, UI |
+| Map Designer | **Ramona** | 3D world models, zones, maps, pets, accessories — see below for workflow |
+
+> **Collaboration note**: Ramona and Alex are working from the same repo. Always `git pull` before starting a session to get the latest changes. Ramona commits assets to `assets/` and zone files to `src/`. Alex commits code to `src/server/` and `src/client/`. Avoid editing each other's areas to prevent merge conflicts.
+
+---
+
 ## 🎮 Game Systems (V4)
 
 | System | Status |
@@ -55,7 +66,7 @@ A Roblox brainrot idle clicker game built with Rojo + VS Code.
 ---
 
 
-Hey! This is your guide for adding maps, models, pets and accessories to the game. You handle the creative 3D side — I handle wiring it into the code. Here's everything you need to know.
+Hey Ramona! This is your guide for adding maps, models, pets and accessories to the game. You handle the creative 3D side — I handle wiring it into the code. Here's everything you need to know.
 
 ---
 
