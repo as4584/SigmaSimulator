@@ -177,6 +177,7 @@ local duels         = {}
 local duelPend      = {}
 local coopActive    = false
 local spinBoost     = {}   -- userId → os.clock() expiry
+local leaderboardDirty = true
 
 -- ── Helpers ───────────────────────────────────────────────────────────────
 local function prestigeBonus(p)
@@ -385,11 +386,13 @@ local function sync(player, gain, label)
             })
         end
     end
-    if oldName ~= rank.name then applyRankLabel(player, rank) end
+    -- Always reconcile billboard text to prevent stale overhead titles.
+    applyRankLabel(player, rank)
     lastRanks[player.UserId] = rank.name
     player.leaderstats.Sigma.Value    = d.sigma
     player.leaderstats.Rank.Value     = rank.emoji.." "..rank.name
     player.leaderstats.Prestige.Value = d.prestige
+    leaderboardDirty = true
 
     local spinSecsLeft = 0
     if spinBoost[player.UserId] then
@@ -487,6 +490,7 @@ Players.PlayerAdded:Connect(function(player)
 
     task.wait(1.2)
     sync(player, 0, "")
+    leaderboardDirty = true
     QuestUpdateEvent:FireClient(player, {
         questProgress=d.questProgress, questDone=d.questDone,
     })
@@ -509,6 +513,7 @@ Players.PlayerRemoving:Connect(function(player)
     pData[player.UserId]=nil ; combos[player.UserId]=nil
     lastRanks[player.UserId]=nil ; godClickTimes[player.UserId]=nil
     godModeActive[player.UserId]=nil ; spinBoost[player.UserId]=nil
+    leaderboardDirty = true
 end)
 
 game:BindToClose(function()
@@ -932,32 +937,44 @@ task.spawn(function()
 end)
 
 -- ── Leaderboard broadcaster ───────────────────────────────────────────────
+local function buildLeaderboardTop5()
+    local entries = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        local d = pData[p.UserId]
+        if d then
+            local ls = p:FindFirstChild("leaderstats")
+            local sigmaVal = (ls and ls:FindFirstChild("Sigma") and ls.Sigma.Value) or d.sigma
+            local snapRank = rankFor(d.sigma)
+            local rankText = (ls and ls:FindFirstChild("Rank") and ls.Rank.Value)
+                or (snapRank.emoji.." "..snapRank.name)
+            local prestVal = (ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value) or d.prestige
+            table.insert(entries, {
+                name = p.Name,
+                sigma = sigmaVal,
+                prestige = prestVal,
+                rank = rankText,
+            })
+        end
+    end
+    table.sort(entries, function(a, b) return a.sigma > b.sigma end)
+    local top5 = {}
+    for i = 1, math.min(5, #entries) do top5[i] = entries[i] end
+    return top5
+end
+
+local function broadcastLeaderboard()
+    local top5 = buildLeaderboardTop5()
+    for _, p in ipairs(Players:GetPlayers()) do
+        LeaderboardUpdateEvent:FireClient(p, top5)
+    end
+end
+
 task.spawn(function()
     while true do
-        task.wait(10)
-        local entries = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            local d = pData[p.UserId]
-            if d then
-                local ls = p:FindFirstChild("leaderstats")
-                local sigmaVal = (ls and ls:FindFirstChild("Sigma") and ls.Sigma.Value) or d.sigma
-                local snapRank = rankFor(d.sigma)
-                local rankText = (ls and ls:FindFirstChild("Rank") and ls.Rank.Value)
-                    or (snapRank.emoji.." "..snapRank.name)
-                local prestVal = (ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value) or d.prestige
-                table.insert(entries, {
-                    name = p.Name,
-                    sigma = sigmaVal,
-                    prestige = prestVal,
-                    rank = rankText,
-                })
-            end
-        end
-        table.sort(entries, function(a, b) return a.sigma > b.sigma end)
-        local top5 = {}
-        for i = 1, math.min(5, #entries) do top5[i] = entries[i] end
-        for _, p in ipairs(Players:GetPlayers()) do
-            LeaderboardUpdateEvent:FireClient(p, top5)
+        task.wait(1)
+        if leaderboardDirty then
+            broadcastLeaderboard()
+            leaderboardDirty = false
         end
     end
 end)
