@@ -62,6 +62,41 @@ screen.IgnoreGuiInset=true; screen.Parent=playerGui
 local ClickRemote = Remotes:WaitForChild("ClickSigma")
 local lastTapPos  = Vector2.new(0.5, 0.72)
 
+-- ── Combo tracking (restored from ClickHandler V1–V3) ────────────────────
+local COMBO_THRESH       = 5    -- clicks within window to activate
+local COMBO_WINDOW       = 1.2  -- seconds
+local COMBO_IDLE         = 1.5  -- seconds idle to end combo
+local _comboTimes        = {}
+local _comboOn           = false
+local _lastClickAt       = 0
+local ComboActiveRemote  = Remotes:WaitForChild("ComboActive")
+local ComboEndedRemote   = Remotes:WaitForChild("ComboEnded")
+
+local function trackCombo()
+    local now = tick()
+    _lastClickAt = now
+    table.insert(_comboTimes, now)
+    local cutoff = now - COMBO_WINDOW
+    while _comboTimes[1] and _comboTimes[1] < cutoff do
+        table.remove(_comboTimes, 1)
+    end
+    if #_comboTimes >= COMBO_THRESH and not _comboOn then
+        _comboOn = true
+        ComboActiveRemote:FireServer()
+    end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if _comboOn and (tick() - _lastClickAt) >= COMBO_IDLE then
+            _comboOn    = false
+            _comboTimes = {}
+            ComboEndedRemote:FireServer()
+        end
+    end
+end)
+
 -- Expanding ring ripple at tap position
 local function spawnTapRipple(pos)
     local ring = Instance.new("Frame")
@@ -95,6 +130,7 @@ tapCatcher.MouseButton1Down:Connect(function()
     local mp = UIS:GetMouseLocation()
     local vp = workspace.CurrentCamera.ViewportSize
     lastTapPos = Vector2.new(mp.X / vp.X, mp.Y / vp.Y)
+    trackCombo()
     ClickRemote:FireServer()
     spawnTapRipple(lastTapPos)
 end)
@@ -103,6 +139,7 @@ tapCatcher.TouchTap:Connect(function(tps)
         local vp = workspace.CurrentCamera.ViewportSize
         lastTapPos = Vector2.new(tps[1].X / vp.X, tps[1].Y / vp.Y)
     end
+    trackCombo()
     ClickRemote:FireServer()
     spawnTapRipple(lastTapPos)
 end)
@@ -135,7 +172,7 @@ task.delay(5, dismissHint)
 local rizzFrame=Instance.new("Frame")
 rizzFrame.Size=UDim2.new(0,180,0,46); rizzFrame.Position=UDim2.new(1,-190-NAV_RAIL_W,0,12)
 rizzFrame.BackgroundColor3=Color3.fromRGB(255,255,255); rizzFrame.BackgroundTransparency=0.82
-rizzFrame.BorderSizePixel=0; rizzFrame.Parent=screen; corner(rizzFrame)
+rizzFrame.BorderSizePixel=0; rizzFrame.ZIndex=10; rizzFrame.Parent=screen; corner(rizzFrame)
 do local s=Instance.new("UIStroke",rizzFrame); s.Color=Color3.fromRGB(180,80,255); s.Transparency=0.35; s.Thickness=1 end
 local rizzLabel=lbl({Name="RizzLabel",Size=UDim2.new(1,-8,1,0),Position=UDim2.new(0,4,0,0),
     Text="💎  0 Rizz",TextColor3=Color3.fromRGB(230,180,255),TextScaled=true,
@@ -145,7 +182,7 @@ local rizzLabel=lbl({Name="RizzLabel",Size=UDim2.new(1,-8,1,0),Position=UDim2.ne
 local sigmaFrame=Instance.new("Frame")
 sigmaFrame.Size=UDim2.new(0,320,0,76); sigmaFrame.Position=UDim2.new(0.5,-160,0,12)
 sigmaFrame.BackgroundColor3=Color3.fromRGB(255,255,255); sigmaFrame.BackgroundTransparency=0.82
-sigmaFrame.BorderSizePixel=0; sigmaFrame.Parent=screen; corner(sigmaFrame)
+sigmaFrame.BorderSizePixel=0; sigmaFrame.ZIndex=10; sigmaFrame.Parent=screen; corner(sigmaFrame)
 do local s=Instance.new("UIStroke",sigmaFrame); s.Color=Color3.fromRGB(200,200,255); s.Transparency=0.45; s.Thickness=1 end
 local sigmaLabel=lbl({Name="SigmaLabel",Size=UDim2.new(1,0,0.45,0),
     Text="😎  0 σ",TextColor3=Color3.fromRGB(255,215,0),TextScaled=true,Font=Enum.Font.GothamBold},sigmaFrame)
@@ -164,7 +201,7 @@ local spinBoostLabel=lbl({Name="SpinBoostLabel",Size=UDim2.new(0,180,0,22),
 local rankFrame=Instance.new("Frame")
 rankFrame.Size=UDim2.new(0,320,0,42); rankFrame.Position=UDim2.new(0.5,-160,0,92)
 rankFrame.BackgroundColor3=Color3.fromRGB(255,255,255); rankFrame.BackgroundTransparency=0.82
-rankFrame.BorderSizePixel=0; rankFrame.Parent=screen; corner(rankFrame)
+rankFrame.BorderSizePixel=0; rankFrame.ZIndex=10; rankFrame.Parent=screen; corner(rankFrame)
 do local s=Instance.new("UIStroke",rankFrame); s.Color=Color3.fromRGB(200,200,255); s.Transparency=0.45; s.Thickness=1 end
 local rankLabel=lbl({Name="RankLabel",Size=UDim2.new(1,0,0.6,0),
     Text="🤡  NPC",TextColor3=Color3.fromRGB(220,220,220),TextScaled=true,Font=Enum.Font.GothamBold},rankFrame)
@@ -367,7 +404,7 @@ local function makePanel(name)
     f.ScrollBarImageColor3  = Color3.fromRGB(80, 80, 120)
     f.CanvasSize            = UDim2.new(0, 0, 0, 0)
     f.Visible               = false
-    -- NOTE: Active NOT set to false here — buttons inside panels must be clickable
+    f.Active                = false  -- empty-space taps pass to tapCatcher; child TextButtons still fire
     f.ZIndex                = 3
     f.Parent                = panelHost
     panels[name] = f
@@ -1223,6 +1260,7 @@ end)
 UIS.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Space then
+        trackCombo()
         ClickRemote:FireServer()
         spawnTapRipple(Vector2.new(0.5, 0.65))  -- visual feedback at screen centre
     end
