@@ -412,6 +412,7 @@ local function sync(player, gain, label)
         freeSlotClaimed= d.freeSlotClaimed or {},
         spinBoostLeft  = spinSecsLeft,
     })
+    print("[DEBUG] SERVER_UI_UPDATE_SENT to", player.Name, "sigma="..tostring(d.sigma))
 end
 
 -- ── Player lifecycle ──────────────────────────────────────────────────────
@@ -567,6 +568,7 @@ local GOD_MULT     = 100
 
 ClickEvent.OnServerEvent:Connect(function(player)
     local d = pData[player.UserId] ; if not d then return end
+    print("[DEBUG] SERVER_CLICK_RECEIVED from", player.Name)
     local uid = player.UserId
 
     godClickTimes[uid] = godClickTimes[uid] or {}
@@ -595,6 +597,7 @@ ClickEvent.OnServerEvent:Connect(function(player)
         * (combos[uid] and 1.5 or 1) * godB
     ))
     d.sigma += gain ; d.allTimeSigma += gain
+    print("[DEBUG] SERVER_REWARD_GRANTED +"..tostring(gain).." -> sigma now "..tostring(d.sigma))
     d.totalClicks = (d.totalClicks or 0) + 1
     sync(player, gain, cr.label)
 

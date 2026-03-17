@@ -99,6 +99,7 @@ end)
 
 -- Expanding ring ripple at tap position
 local function spawnTapRipple(pos)
+    print("[DEBUG] CLIENT_RIPPLE_SPAWNED at", string.format("%.3f,%.3f", pos.X, pos.Y))
     local ring = Instance.new("Frame")
     ring.Size                 = UDim2.new(0, 20, 0, 20)
     ring.AnchorPoint          = Vector2.new(0.5, 0.5)
@@ -130,8 +131,10 @@ tapCatcher.MouseButton1Down:Connect(function()
     local mp = UIS:GetMouseLocation()
     local vp = workspace.CurrentCamera.ViewportSize
     lastTapPos = Vector2.new(mp.X / vp.X, mp.Y / vp.Y)
+    print("[DEBUG] CLIENT_CLICK_DETECTED mouse at", string.format("%.3f,%.3f", lastTapPos.X, lastTapPos.Y))
     trackCombo()
     ClickRemote:FireServer()
+    print("[DEBUG] CLIENT_CLICK_REMOTE_FIRED mouse")
     spawnTapRipple(lastTapPos)
 end)
 tapCatcher.TouchTap:Connect(function(tps)
@@ -139,8 +142,10 @@ tapCatcher.TouchTap:Connect(function(tps)
         local vp = workspace.CurrentCamera.ViewportSize
         lastTapPos = Vector2.new(tps[1].X / vp.X, tps[1].Y / vp.Y)
     end
+    print("[DEBUG] CLIENT_CLICK_DETECTED touch")
     trackCombo()
     ClickRemote:FireServer()
+    print("[DEBUG] CLIENT_CLICK_REMOTE_FIRED touch")
     spawnTapRipple(lastTapPos)
 end)
 
@@ -363,6 +368,7 @@ end
 
 -- ── showPanel ─────────────────────────────────────────────────────────────
 local function showPanel(id)
+    print("[DEBUG] PANEL_OPENED", id)
     -- Hide old panel
     if activePanel then activePanel.Visible = false end
     local p = panelHost:FindFirstChild(id)
@@ -489,6 +495,7 @@ for i, tab in ipairs(NAV_TABS) do
         tw(pill, { Size = UDim2.new(0, NAV_BTN_W - 6, 0, NAV_BTN_H - 6) }, 0.08)
     end)
     pill.MouseButton1Up:Connect(function()
+        print("[DEBUG] NAV_PILL_CLICKED", tabId)
         tw(pill, { Size = UDim2.new(0, NAV_BTN_W, 0, NAV_BTN_H) }, 0.12)
         showPanel(tabId)
     end)
@@ -931,6 +938,7 @@ local CRIT_COLORS={
     [""]          =Color3.fromRGB(255,255,255),
 }
 local function spawnFloat(gain, critLabel, normX, normY)
+    print("[DEBUG] CLIENT_FLOAT_SPAWNED +"..tostring(gain), critLabel or "")
     normX = normX or 0.5
     normY = normY or 0.72
     local fl=Instance.new("TextLabel")
@@ -978,6 +986,7 @@ end)
 
 -- ── UpdateUI ─────────────────────────────────────────────────────────────
 Remotes:WaitForChild("UpdateUI").OnClientEvent:Connect(function(data)
+    print("[DEBUG] CLIENT_UI_UPDATE_RECEIVED sigma="..tostring(data.sigma).." gain="..tostring(data.lastGain))
     sigmaLabel.Text="😎  "..tostring(data.sigma).." σ"
     petIncomeLabel.Text="🐾 "..tostring(data.petIncome).." σ/sec"
     multLabel.Text="x"..string.format("%.1f", data.multiplier).." per click"
@@ -1260,8 +1269,10 @@ end)
 UIS.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Space then
+        print("[DEBUG] CLIENT_CLICK_DETECTED space")
         trackCombo()
         ClickRemote:FireServer()
+        print("[DEBUG] CLIENT_CLICK_REMOTE_FIRED space")
         spawnTapRipple(Vector2.new(0.5, 0.65))  -- visual feedback at screen centre
     end
 end)
