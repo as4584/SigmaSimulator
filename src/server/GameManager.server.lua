@@ -223,6 +223,8 @@ local function rankFor(sigma)
     end
     return cur
 end
+local rankIndexByName = {}
+for i, r in ipairs(Ranks) do rankIndexByName[r.name] = i end
 local function nextRankFor(sigma)
     for _, r in ipairs(Ranks) do
         if not r.prestige and sigma < r.sigmaRequired then return r end
@@ -324,13 +326,19 @@ end
 local function applyRankLabel(player, rank)
     local char = player.Character ; if not char then return end
     local head = char:FindFirstChild("Head") ; if not head then return end
-    local old  = head:FindFirstChild("RankBillboard") ; if old then old:Destroy() end
+    local targetText = rank.emoji.."  "..rank.name
+    local old  = head:FindFirstChild("RankBillboard")
+    if old then
+        local oldLbl = old:FindFirstChildOfClass("TextLabel")
+        if oldLbl and oldLbl.Text == targetText then return end
+        old:Destroy()
+    end
     local bb = Instance.new("BillboardGui")
     bb.Name="RankBillboard" ; bb.Size=UDim2.new(0,220,0,38)
     bb.StudsOffset=Vector3.new(0,1.8,0) ; bb.AlwaysOnTop=true ; bb.Parent=head
     local lbl=Instance.new("TextLabel")
     lbl.Size=UDim2.new(1,0,1,0) ; lbl.BackgroundTransparency=1
-    lbl.Text=rank.emoji.."  "..rank.name
+    lbl.Text=targetText
     lbl.TextColor3=Color3.fromRGB(255,255,255) ; lbl.TextScaled=true
     lbl.Font=Enum.Font.GothamBold ; lbl.Parent=bb
     local stroke=Instance.new("UIStroke")
@@ -365,15 +373,19 @@ local function sync(player, gain, label)
     local d = pData[player.UserId] ; if not d then return end
     local rank = rankFor(d.sigma)
     local nxt  = nextRankFor(d.sigma)
-    local old  = lastRanks[player.UserId]
-    if old and old ~= rank.name then
-        d.rizzTokens += 10
-        ServerAnnounceEvent:FireAllClients({
-            text  = player.Name.." ranked up to "..rank.emoji.." "..rank.name.."! +10💎",
-            color = "gold",
-        })
-        applyRankLabel(player, rank)
+    local oldName = lastRanks[player.UserId]
+    if oldName and oldName ~= rank.name then
+        local oldIndex = rankIndexByName[oldName] or 1
+        local newIndex = rankIndexByName[rank.name] or 1
+        if newIndex > oldIndex then
+            d.rizzTokens += 10
+            ServerAnnounceEvent:FireAllClients({
+                text  = player.Name.." ranked up to "..rank.emoji.." "..rank.name.."! +10💎",
+                color = "gold",
+            })
+        end
     end
+    if oldName ~= rank.name then applyRankLabel(player, rank) end
     lastRanks[player.UserId] = rank.name
     player.leaderstats.Sigma.Value    = d.sigma
     player.leaderstats.Rank.Value     = rank.emoji.." "..rank.name
@@ -412,7 +424,7 @@ local function sync(player, gain, label)
         freeSlotClaimed= d.freeSlotClaimed or {},
         spinBoostLeft  = spinSecsLeft,
     })
-    print("[DEBUG] SERVER_UI_UPDATE_SENT to", player.Name, "sigma="..tostring(d.sigma))
+    print("[DEBUG] SERVER_UI_UPDATE_SENT to", player.Name, "sigma="..tostring(d.sigma), "rank="..rank.name)
 end
 
 -- ── Player lifecycle ──────────────────────────────────────────────────────
@@ -926,7 +938,20 @@ task.spawn(function()
         local entries = {}
         for _, p in ipairs(Players:GetPlayers()) do
             local d = pData[p.UserId]
-            if d then table.insert(entries, {name=p.Name, sigma=d.sigma, prestige=d.prestige}) end
+            if d then
+                local ls = p:FindFirstChild("leaderstats")
+                local sigmaVal = (ls and ls:FindFirstChild("Sigma") and ls.Sigma.Value) or d.sigma
+                local snapRank = rankFor(d.sigma)
+                local rankText = (ls and ls:FindFirstChild("Rank") and ls.Rank.Value)
+                    or (snapRank.emoji.." "..snapRank.name)
+                local prestVal = (ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value) or d.prestige
+                table.insert(entries, {
+                    name = p.Name,
+                    sigma = sigmaVal,
+                    prestige = prestVal,
+                    rank = rankText,
+                })
+            end
         end
         table.sort(entries, function(a, b) return a.sigma > b.sigma end)
         local top5 = {}

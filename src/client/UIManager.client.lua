@@ -1181,7 +1181,8 @@ Remotes:WaitForChild("LeaderboardUpdate").OnClientEvent:Connect(function(top5)
         local entry=top5 and top5[i]
         if entry then
             local pre=entry.prestige>0 and " ⭐"..entry.prestige or ""
-            row.Text=(MEDALS[i] or " ").." "..entry.name..pre.."  —  "..entry.sigma.."σ"
+            local rankTxt = entry.rank and ("  |  "..entry.rank) or ""
+            row.Text=(MEDALS[i] or " ").." "..entry.name..pre..rankTxt.."  —  "..entry.sigma.."σ"
             row.BackgroundTransparency=0.3
         else
             row.Text="" ; row.BackgroundTransparency=1
